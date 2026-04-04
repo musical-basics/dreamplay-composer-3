@@ -40,7 +40,7 @@ export function useOSMD(
             }
 
             const osmd = new OSMD(containerRef.current, {
-                autoResize,
+                autoResize: false,
                 drawTitle,
                 drawSubtitle,
                 drawPartNames: false,
