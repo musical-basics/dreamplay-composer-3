@@ -33,7 +33,8 @@ export function UploadWizardV2({
     const [lastUploadStatus, setLastUploadStatus] = useState<string | null>(null)
     const [uploadError, setUploadError] = useState<string | null>(null)
     const [pipelineLogs, setPipelineLogs] = useState<string[]>([])
-    const [pipelineProgress, setPipelineProgress] = useState<{ percent: number; stage: string } | null>(null)
+    const [realProgress, setRealProgress] = useState<{ percent: number; stage: string } | null>(null)
+    const [displayPercent, setDisplayPercent] = useState(0)
     const lastStageRef = useRef<string | null>(null)
     const logRef = useRef<HTMLDivElement>(null)
 
@@ -42,6 +43,29 @@ export function UploadWizardV2({
         setPipelineLogs((prev) => [...prev, `[${ts}] ${msg}`])
         setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50)
     }, [])
+
+    // Smooth fake progress: ticks from 10% → 65% over ~30s while GPU is working
+    useEffect(() => {
+        if (!transcribing) { setDisplayPercent(0); return }
+
+        const interval = setInterval(() => {
+            setDisplayPercent((prev) => {
+                const realPct = realProgress?.percent ?? 0
+                // If real progress jumped ahead (e.g. 70%), snap to it
+                if (realPct > prev) return realPct
+                // Otherwise, slowly creep up but cap at 65% (GPU inference zone)
+                if (prev < 65) return prev + 0.8
+                return prev
+            })
+        }, 500)
+
+        return () => clearInterval(interval)
+    }, [transcribing, realProgress])
+
+    // Snap display to 100 when complete
+    useEffect(() => {
+        if (realProgress?.percent === 100) setDisplayPercent(100)
+    }, [realProgress?.percent])
 
     // Poll transcription job progress
     useEffect(() => {
@@ -59,11 +83,11 @@ export function UploadWizardV2({
                         lastStageRef.current = data.progress.stage
                         addLog(`[${data.progress.percent}%] ${data.progress.stage}`)
                     }
-                    setPipelineProgress(data.progress)
+                    setRealProgress(data.progress)
                 }
 
                 if (data.state === 'completed') {
-                    setPipelineProgress({ percent: 100, stage: 'Complete!' })
+                    setRealProgress({ percent: 100, stage: 'Complete!' })
                     addLog('[100%] Transcription complete — loading MIDI into editor...')
                     clearInterval(interval)
                 } else if (data.state === 'failed') {
@@ -407,17 +431,17 @@ export function UploadWizardV2({
                         <div className="text-center">
                             <Loader2 className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-spin" />
                             <h3 className="text-xl font-bold text-white mb-2">
-                                {pipelineProgress?.stage
-                                    ? `${pipelineProgress.stage} (${pipelineProgress.percent}%)`
-                                    : 'Transcribing on GPU...'}
+                                {realProgress?.stage
+                                    ? `${realProgress.stage} (${Math.round(displayPercent)}%)`
+                                    : `Transcribing on GPU... (${Math.round(displayPercent)}%)`}
                             </h3>
                             <p className="text-zinc-400 mb-4 text-sm">
                                 The ByteDance AI model is analyzing your recording and generating a high-accuracy MIDI transcription.
                             </p>
                             <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                                 <div
-                                    className="h-full bg-purple-500 rounded-full transition-all duration-700 ease-out"
-                                    style={{ width: `${pipelineProgress?.percent ?? 5}%` }}
+                                    className="h-full bg-purple-500 rounded-full transition-all duration-500 ease-out"
+                                    style={{ width: `${Math.round(displayPercent)}%` }}
                                 />
                             </div>
                         </div>
