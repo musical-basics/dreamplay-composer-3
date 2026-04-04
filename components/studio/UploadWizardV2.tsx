@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { FileAudio, FileMusic, Music, CheckCircle2, ArrowRight, Upload, Loader2, Info, Mic, Piano } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -16,6 +16,7 @@ interface UploadWizardV2Props {
     onUploadMidi: (file: File) => Promise<void>
     onTranscribe?: () => void
     transcribing?: boolean
+    transcriptionJobId?: string | null
 }
 
 export function UploadWizardV2({
@@ -25,11 +26,55 @@ export function UploadWizardV2({
     onUploadMidi,
     onTranscribe,
     transcribing = false,
+    transcriptionJobId = null,
 }: UploadWizardV2Props) {
     const [mode, setMode] = useState<UploadMode>(null)
     const [uploading, setUploading] = useState<string | null>(null)
     const [lastUploadStatus, setLastUploadStatus] = useState<string | null>(null)
     const [uploadError, setUploadError] = useState<string | null>(null)
+    const [pipelineLogs, setPipelineLogs] = useState<string[]>([])
+    const [pipelineProgress, setPipelineProgress] = useState<{ percent: number; stage: string } | null>(null)
+    const lastStageRef = useRef<string | null>(null)
+    const logRef = useRef<HTMLDivElement>(null)
+
+    const addLog = useCallback((msg: string) => {
+        const ts = new Date().toLocaleTimeString()
+        setPipelineLogs((prev) => [...prev, `[${ts}] ${msg}`])
+        setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50)
+    }, [])
+
+    // Poll transcription job progress
+    useEffect(() => {
+        if (!transcriptionJobId || !transcribing) return
+
+        addLog('Transcription job queued — waiting for GPU...')
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/transcribe/status?jobId=${transcriptionJobId}`)
+                const data = await res.json()
+
+                if (data.progress?.percent != null) {
+                    if (lastStageRef.current !== data.progress.stage) {
+                        lastStageRef.current = data.progress.stage
+                        addLog(`[${data.progress.percent}%] ${data.progress.stage}`)
+                    }
+                    setPipelineProgress(data.progress)
+                }
+
+                if (data.state === 'completed') {
+                    setPipelineProgress({ percent: 100, stage: 'Complete!' })
+                    addLog('[100%] Transcription complete — loading MIDI into editor...')
+                    clearInterval(interval)
+                } else if (data.state === 'failed') {
+                    addLog(`FAILED: ${data.failedReason || 'Unknown error'}`)
+                    clearInterval(interval)
+                }
+            } catch { /* non-fatal */ }
+        }, 2000)
+
+        return () => clearInterval(interval)
+    }, [transcriptionJobId, transcribing, addLog])
 
     const hasAudio = !!config.audio_url
     const hasXml = !!config.xml_url
@@ -358,14 +403,39 @@ export function UploadWizardV2({
 
                 {/* Transcription in progress */}
                 {transcribing && (
-                    <div className="p-6 rounded-xl border border-purple-500/30 bg-purple-500/5 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <Loader2 className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-spin" />
-                        <h3 className="text-xl font-bold text-white mb-2">Transcribing on GPU...</h3>
-                        <p className="text-zinc-400 mb-2">
-                            The ByteDance AI model is analyzing your recording and generating a high-accuracy MIDI transcription. This typically takes 20-40 seconds.
-                        </p>
-                        <div className="mt-4 w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                            <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
+                    <div className="p-6 rounded-xl border border-purple-500/30 bg-purple-500/5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="text-center">
+                            <Loader2 className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-spin" />
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                {pipelineProgress?.stage
+                                    ? `${pipelineProgress.stage} (${pipelineProgress.percent}%)`
+                                    : 'Transcribing on GPU...'}
+                            </h3>
+                            <p className="text-zinc-400 mb-4 text-sm">
+                                The ByteDance AI model is analyzing your recording and generating a high-accuracy MIDI transcription.
+                            </p>
+                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                <div
+                                    className="h-full bg-purple-500 rounded-full transition-all duration-700 ease-out"
+                                    style={{ width: `${pipelineProgress?.percent ?? 5}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Pipeline Log */}
+                        <div className="mt-6">
+                            <h4 className="text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">Pipeline Log</h4>
+                            <div
+                                ref={logRef}
+                                className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs text-zinc-400"
+                            >
+                                {pipelineLogs.length === 0 && (
+                                    <span className="text-zinc-600">Waiting for activity...</span>
+                                )}
+                                {pipelineLogs.map((line, i) => (
+                                    <div key={i}>{line}</div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

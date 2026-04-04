@@ -618,6 +618,7 @@ export default function AdminEditor() {
                             onUploadMidi={handleMidiUpload}
                             onTranscribe={handleTranscribe}
                             transcribing={transcribing}
+                            transcriptionJobId={transcriptionJobId}
                         />
                     )}
                 </div>
