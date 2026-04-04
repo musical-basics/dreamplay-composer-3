@@ -264,7 +264,7 @@ export class PlaybackManager {
         if (this._visibilityHandler) return
         this._visibilityHandler = () => {
             if (document.hidden && this.isPlaying) {
-                console.log('[PlaybackManager] App backgrounded — auto-pausing')
+                debug.log('[PlaybackManager] App backgrounded — auto-pausing')
                 this.pause()
             }
         }
@@ -303,4 +303,5 @@ export function destroyPlaybackManager(): void {
         _instance.destroy()
         _instance = null
     }
-}
+
+import { debug } from '@/lib/debug'

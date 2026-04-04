@@ -2,18 +2,12 @@
  * WaterfallRenderer — PixiJS Canvas + Zero-Allocation Render Loop
  */
 
-import { Application, Graphics, Container, Sprite } from 'pixi.js'
-import type { NoteEvent, ParsedMidi } from '../types'
-import { NotePool } from './NotePool'
-import {
     calculatePianoMetricsFromDOM,
     calculatePianoMetrics,
     isBlackKey,
     MIDI_MIN,
     MIDI_MAX,
 } from './pianoMetrics'
-import type { PlaybackManager } from './PlaybackManager'
-import { useAppStore } from '../store'
 
 function velocityToColor(velocity: number): number {
     const v = Math.max(0, Math.min(127, velocity))
@@ -154,7 +148,7 @@ export class WaterfallRenderer {
             this.app.ticker.add(this.boundRenderFrame)
         }
 
-        console.log(`[SynthUI] WaterfallRenderer initialized (sprite-atlas render loop + FX engine)${(window as any).__STUDIO_MODE__ ? ' [STUDIO MODE]' : ''}`)
+        debug.log(`[SynthUI] WaterfallRenderer initialized (sprite-atlas render loop + FX engine)${(window as any).__STUDIO_MODE__ ? ' [STUDIO MODE]' : ''}`)
     }
 
     private initParticles() {
@@ -610,6 +604,13 @@ export class WaterfallRenderer {
         this.strikeLineGraphics = null
         this.keyElements.fill(null)
 
-        console.log('[SynthUI] WaterfallRenderer destroyed')
+        debug.log('[SynthUI] WaterfallRenderer destroyed')
     }
-}
+
+import { Application, Graphics, Container, Sprite } from 'pixi.js'
+import type { NoteEvent, ParsedMidi } from '../types'
+import { NotePool } from './NotePool'
+import {
+import type { PlaybackManager } from './PlaybackManager'
+import { useAppStore } from '../store'
+import { debug } from '@/lib/debug'

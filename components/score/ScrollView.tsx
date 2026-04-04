@@ -1,11 +1,5 @@
 'use client'
 
-import * as React from 'react'
-import { useRef, useEffect, useCallback, useState, memo } from 'react'
-import { useOSMD } from '@/hooks/useOSMD'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import type { Anchor, BeatAnchor, ParsedMidi, XMLEvent } from '@/lib/types'
-import { useAppStore } from '@/lib/store'
 
 interface ScrollViewProps {
     xmlUrl: string | null
@@ -496,7 +490,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             newNoteMap.forEach((notes, measureIndex) => {
                 counts.set(measureIndex, notes.length)
             })
-            console.log(`[ScrollView OSMD] Exported ${xmlEventsList.length} exact XML note events for mapping.`)
+            debug.log(`[ScrollView OSMD] Exported ${xmlEventsList.length} exact XML note events for mapping.`)
             onScoreLoaded(measureList.length, counts, xmlEventsList)
         }
 
@@ -806,7 +800,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             if (stats.lastLogMs === 0) stats.lastLogMs = frameStartMs
             if (frameEndMs - stats.lastLogMs >= 1000) {
                 const avgHeavy = stats.heavyFrames > 0 ? stats.heavyWorkMs / stats.heavyFrames : 0
-                console.log(
+                debug.log(
                     `[OSMD PERF] fps=${stats.frames} heavy=${stats.heavyFrames} skipped=${stats.skippedHeavy} ` +
                     `avgHeavyMs=${avgHeavy.toFixed(2)} measure=${measure}`
                 )
@@ -963,4 +957,11 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 }
 
 export const ScrollView = memo(ScrollViewComponent)
-export default ScrollView
+
+import * as React from 'react'
+import { useRef, useEffect, useCallback, useState, memo } from 'react'
+import { useOSMD } from '@/hooks/useOSMD'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import type { Anchor, BeatAnchor, ParsedMidi, XMLEvent } from '@/lib/types'
+import { useAppStore } from '@/lib/store'
+import { debug } from '@/lib/debug'

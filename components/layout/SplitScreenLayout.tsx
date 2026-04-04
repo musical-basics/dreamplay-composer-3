@@ -1,14 +1,5 @@
 'use client'
 
-import * as React from 'react'
-import { useRef, useEffect, useState, useCallback } from 'react'
-import { ScrollView } from '@/components/score/ScrollView'
-import { PianoKeyboard } from '@/components/synthesia/PianoKeyboard'
-import { useAppStore } from '@/lib/store'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { AudioSynth } from '@/lib/engine/AudioSynth'
-import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
-import type { ParsedMidi, XMLEvent } from '@/lib/types'
 
 interface SplitScreenLayoutProps {
     audioUrl: string | null
@@ -136,7 +127,7 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
                         void document.body.offsetHeight;
                     }
                 }
-                console.log('[SplitScreen] Globals exposed: __WATERFALL_CANVAS__, __RENDER_WATERFALL' + (isStudioMode ? ', __ADVANCE_FRAME__, __UPDATE_SCORE__' : ''))
+                debug.log('[SplitScreen] Globals exposed: __WATERFALL_CANVAS__, __RENDER_WATERFALL' + (isStudioMode ? ', __ADVANCE_FRAME__, __UPDATE_SCORE__' : ''))
 
                 if (onRendererReady) onRendererReady()
             } catch (err) {
@@ -270,4 +261,14 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
     )
 }
 
-export default SplitScreenLayout
+
+import * as React from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
+import { ScrollView } from '@/components/score/ScrollView'
+import { PianoKeyboard } from '@/components/synthesia/PianoKeyboard'
+import { useAppStore } from '@/lib/store'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { AudioSynth } from '@/lib/engine/AudioSynth'
+import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
+import type { ParsedMidi, XMLEvent } from '@/lib/types'
+import { debug } from '@/lib/debug'

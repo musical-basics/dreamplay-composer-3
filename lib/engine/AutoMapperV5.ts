@@ -5,7 +5,6 @@
 // Pitch-aware, duration-aware, with interactive ghost anchor workflow.
 // Does NOT modify V3/V4 code — fully self-contained.
 
-import type { NoteEvent, Anchor, BeatAnchor, XMLEvent, V5MapperState } from '../types'
 
 // Re-export audio offset helper from the shared module
 export { getAudioOffset } from './AudioHelpers'
@@ -38,11 +37,11 @@ function shouldTraceEvent(xmlEvent: XMLEvent): boolean {
 }
 
 function v5Log(message: string): void {
-    if (V5_VERBOSE) console.log(message)
+    if (V5_VERBOSE) debug.log(message)
 }
 
 function v5LogFor(xmlEvent: XMLEvent, message: string): void {
-    if (shouldTraceEvent(xmlEvent)) console.log(message)
+    if (shouldTraceEvent(xmlEvent)) debug.log(message)
 }
 
 function v5WarnRunaway(xmlEvent: XMLEvent, badCount: number): void {
@@ -270,14 +269,14 @@ export function initV5(
     // Find first pitch match in MIDI (no audio offset — V5 works in MIDI time)
     const firstEvent = xmlEvents[0]
     const fermataCount = xmlEvents.filter(e => e.hasFermata).length
-    console.log(`[V5 DEBUG] Total XML events: ${xmlEvents.length}, fermatas: ${fermataCount}`)
+    debug.log(`[V5 DEBUG] Total XML events: ${xmlEvents.length}, fermatas: ${fermataCount}`)
     if (fermataCount > 0) {
-        console.log(`[V5 DEBUG] Fermata events:`, xmlEvents.filter(e => e.hasFermata).map(e => `M${e.measure} B${e.beat}`).join(', '))
+        debug.log(`[V5 DEBUG] Fermata events:`, xmlEvents.filter(e => e.hasFermata).map(e => `M${e.measure} B${e.beat}`).join(', '))
     }
-    console.log(`[V5 DEBUG] First 5 XML events:`, xmlEvents.slice(0, 5).map(e => `M${e.measure} B${e.beat} pitches=[${e.pitches.join(',')}]`).join(' | '))
-    console.log(`[V5 DEBUG] First 10 MIDI notes (pitch):`, sorted.slice(0, 10).map(n => n.pitch).join(','))
-    console.log(`[V5 DEBUG] First 10 MIDI notes (time):`, sorted.slice(0, 10).map(n => n.startTimeSec.toFixed(3)).join(','))
-    console.log(`[V5 DEBUG] Seeking first match for: M${firstEvent.measure} B${firstEvent.beat} pitches=[${firstEvent.pitches.join(',')}]`)
+    debug.log(`[V5 DEBUG] First 5 XML events:`, xmlEvents.slice(0, 5).map(e => `M${e.measure} B${e.beat} pitches=[${e.pitches.join(',')}]`).join(' | '))
+    debug.log(`[V5 DEBUG] First 10 MIDI notes (pitch):`, sorted.slice(0, 10).map(n => n.pitch).join(','))
+    debug.log(`[V5 DEBUG] First 10 MIDI notes (time):`, sorted.slice(0, 10).map(n => n.startTimeSec.toFixed(3)).join(','))
+    debug.log(`[V5 DEBUG] Seeking first match for: M${firstEvent.measure} B${firstEvent.beat} pitches=[${firstEvent.pitches.join(',')}]`)
 
     const firstMatch = findFirstPitchMatch(firstEvent.pitches, sorted, 0)
 
@@ -303,7 +302,7 @@ export function initV5(
     state.currentEventIndex = 1 // Move past first event
     state.status = state.currentEventIndex >= xmlEvents.length ? 'done' : 'running'
 
-    console.log(`[V5] Initialised (MIDI time). First anchor at ${firstAnchorTime.toFixed(3)}s (M${firstEvent.measure} B${firstEvent.beat}). AQNTL=${state.aqntl.toFixed(3)}s. Chord threshold=${chordThresholdFraction}`)
+    debug.log(`[V5] Initialised (MIDI time). First anchor at ${firstAnchorTime.toFixed(3)}s (M${firstEvent.measure} B${firstEvent.beat}). AQNTL=${state.aqntl.toFixed(3)}s. Chord threshold=${chordThresholdFraction}`)
 
     return state
 }
@@ -860,7 +859,7 @@ export function confirmGhost(
 
         const nextIndex = state.currentEventIndex + 1
 
-        console.log(`[V5] Ghost confirmed at ${confirmedTime.toFixed(3)}s (M${ghost.measure} B${ghost.beat}). AQNTL updated to ${newAqntl.toFixed(3)}s`)
+        debug.log(`[V5] Ghost confirmed at ${confirmedTime.toFixed(3)}s (M${ghost.measure} B${ghost.beat}). AQNTL updated to ${newAqntl.toFixed(3)}s`)
 
         return {
             ...state,
@@ -911,6 +910,8 @@ export function runV5ToEnd(
         }
     }
 
-    console.log(`[V5] Complete. ${current.anchors.length} Measure Anchors, ${current.beatAnchors.length} Beat Anchors.`)
+    debug.log(`[V5] Complete. ${current.anchors.length} Measure Anchors, ${current.beatAnchors.length} Beat Anchors.`)
     return { ...current, status: 'done' }
-}
+
+import type { NoteEvent, Anchor, BeatAnchor, XMLEvent, V5MapperState } from '../types'
+import { debug } from '@/lib/debug'

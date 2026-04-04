@@ -1,14 +1,5 @@
 'use client'
 
-import * as React from 'react'
-import { Toolbar } from './Toolbar'
-import { PianoKeyboard } from './PianoKeyboard'
-import { TransportBar } from './TransportBar'
-import { useAppStore } from '@/lib/store'
-import { parseMidiFile } from '@/lib/midi/parser'
-import { getPlaybackManager, destroyPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { AudioSynth } from '@/lib/engine/AudioSynth'
-import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
 
 interface AppLayoutProps {
     canvasContainerRef?: React.RefObject<HTMLDivElement | null>
@@ -66,7 +57,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
 
                 rendererRef.current = localRenderer
                 setRendererReady(true)
-                console.log('[SynthUI] Renderer mounted and ready')
+                debug.log('[SynthUI] Renderer mounted and ready')
             } catch (err) {
                 console.error('[SynthUI] Failed to initialize renderer:', err)
             }
@@ -195,7 +186,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
             rendererRef.current?.loadNotes(parsed)
 
             if (!audioSynthRef.current) {
-                console.log('[SynthUI Audio] Initializing audio on user interaction...')
+                debug.log('[SynthUI Audio] Initializing audio on user interaction...')
                 await pm.ensureResumed()
                 const synth = new AudioSynth(pm.getAudioContext())
                 await synth.load()
@@ -204,7 +195,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
                 synth.playTestNote(60)
             }
 
-            console.log('[SynthUI] MIDI loaded:', parsed.name, `${parsed.notes.length} notes, ${parsed.durationSec.toFixed(1)}s`)
+            debug.log('[SynthUI] MIDI loaded:', parsed.name, `${parsed.notes.length} notes, ${parsed.durationSec.toFixed(1)}s`)
         } catch (err) {
             console.error('[SynthUI] Failed to parse MIDI file:', err)
         }
@@ -221,7 +212,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
             setPlaying(false)
         } else {
             if (!audioSynthRef.current) {
-                console.log('[SynthUI Audio] Initializing audio on Play...')
+                debug.log('[SynthUI Audio] Initializing audio on Play...')
                 await pm.ensureResumed()
                 const synth = new AudioSynth(pm.getAudioContext())
                 await synth.load()
@@ -285,7 +276,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
     }
 
     const handleOpenSettings = () => {
-        console.log('[SynthUI] Settings clicked')
+        debug.log('[SynthUI] Settings clicked')
     }
 
     return (
@@ -344,4 +335,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
     )
 }
 
-export default AppLayout
+
+import * as React from 'react'
+import { Toolbar } from './Toolbar'
+import { PianoKeyboard } from './PianoKeyboard'
+import { TransportBar } from './TransportBar'
+import { useAppStore } from '@/lib/store'
+import { parseMidiFile } from '@/lib/midi/parser'
+import { getPlaybackManager, destroyPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { AudioSynth } from '@/lib/engine/AudioSynth'
+import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
+import { debug } from '@/lib/debug'

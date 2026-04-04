@@ -1,19 +1,5 @@
 'use client'
 
-import * as React from 'react'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
-import { SplitScreenLayout } from '@/components/layout/SplitScreenLayout'
-import { AnchorSidebar } from '@/components/score/AnchorSidebar'
-import { WaveformTimeline } from '@/components/score/WaveformTimeline'
-import { MidiTimeline } from '@/components/score/MidiTimeline'
-import { ScoreControls } from '@/components/score/ScoreControls'
-import { useAppStore } from '@/lib/store'
-import { UploadWizardV2 } from '@/components/studio/UploadWizardV2'
-import {
     DropdownMenu,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
@@ -24,20 +10,10 @@ import {
     DropdownMenuTrigger,
     DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu'
-import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { parseMidiFile } from '@/lib/midi/parser'
-import type { SongConfig, ParsedMidi, BeatAnchor, XMLEvent, V5MapperState } from '@/lib/types'
-import { EXPORT_QUALITY_LABELS, type ExportQualityPreset } from '@/lib/types/renderJob'
-import { fetchConfigById, updateConfigAction, generateUploadUrlAction } from '@/app/actions/config'
-import { getAudioOffset } from '@/lib/engine/AudioHelpers'
-import { createClient } from '@supabase/supabase-js'
 
 export default function AdminEditor() {
     const params = useParams()
@@ -180,7 +156,7 @@ export default function AdminEditor() {
                 (payload) => {
                     const newMidiUrl = payload.new?.midi_url
                     if (newMidiUrl) {
-                        console.log('[Realtime] AI MIDI ready:', newMidiUrl)
+                        debug.log('[Realtime] AI MIDI ready:', newMidiUrl)
                         setTranscribing(false)
                         setConfig((prev) => prev ? { ...prev, midi_url: newMidiUrl } : prev)
                     }
@@ -210,7 +186,7 @@ export default function AdminEditor() {
             const data = await res.json()
             if (data.jobId) {
                 setTranscriptionJobId(data.jobId)
-                console.log('[Transcribe] Job queued:', data.jobId)
+                debug.log('[Transcribe] Job queued:', data.jobId)
             }
         } catch (err) {
             console.error('[Transcribe] Failed to queue:', err)
@@ -477,7 +453,7 @@ export default function AdminEditor() {
             xmlEventsRef.current = events
             setXmlEvents(events)
             const fermataCount = events.filter(e => e.hasFermata).length
-            console.log(`[EditPage] Locked ${events.length} xmlEvents into ref (${fermataCount} fermatas)`)
+            debug.log(`[EditPage] Locked ${events.length} xmlEvents into ref (${fermataCount} fermatas)`)
         }
     }, [])
 
@@ -532,7 +508,7 @@ export default function AdminEditor() {
         if (anchors.length > 1) return
 
         hasAutoMappedRef.current = true
-        console.log('[EditPage] Auto-running Echolocation V5...')
+        debug.log('[EditPage] Auto-running Echolocation V5...')
         handleAutoMap(0.0625) // 64th note chord threshold (default)
     }, [parsedMidi, totalMeasures, xmlEvents, anchors.length, handleAutoMap])
 
@@ -1012,4 +988,30 @@ export default function AdminEditor() {
 
         </div>
     )
-}
+
+import * as React from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
+import { SplitScreenLayout } from '@/components/layout/SplitScreenLayout'
+import { AnchorSidebar } from '@/components/score/AnchorSidebar'
+import { WaveformTimeline } from '@/components/score/WaveformTimeline'
+import { MidiTimeline } from '@/components/score/MidiTimeline'
+import { ScoreControls } from '@/components/score/ScoreControls'
+import { useAppStore } from '@/lib/store'
+import { UploadWizardV2 } from '@/components/studio/UploadWizardV2'
+import {
+import {
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { parseMidiFile } from '@/lib/midi/parser'
+import type { SongConfig, ParsedMidi, BeatAnchor, XMLEvent, V5MapperState } from '@/lib/types'
+import { EXPORT_QUALITY_LABELS, type ExportQualityPreset } from '@/lib/types/renderJob'
+import { fetchConfigById, updateConfigAction, generateUploadUrlAction } from '@/app/actions/config'
+import { getAudioOffset } from '@/lib/engine/AudioHelpers'
+import { createClient } from '@supabase/supabase-js'
+import { debug } from '@/lib/debug'
+import { debug } from '@/lib/debug'

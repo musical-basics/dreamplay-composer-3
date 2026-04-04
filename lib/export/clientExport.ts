@@ -11,10 +11,6 @@
  * serialized SVG so the Image element can render music glyphs.
  */
 
-import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { calculatePianoMetrics, isBlackKey, MIDI_MIN, MIDI_MAX } from '@/lib/engine/pianoMetrics'
-import { useAppStore } from '@/lib/store'
 
 // ─── Types ────────────────────────────────────────────────────────
 export interface LocalExportOptions {
@@ -69,7 +65,7 @@ async function loadFontsAsBase64(): Promise<string> {
       rules.push(
         `@font-face { font-family: '${font.name}'; src: url('data:font/woff2;base64,${b64}') format('woff2'); font-weight: normal; font-style: normal; }`
       )
-      console.log(`[LocalExport] Font loaded: ${font.name} (${(buf.byteLength / 1024).toFixed(0)}KB)`)
+      debug.log(`[LocalExport] Font loaded: ${font.name} (${(buf.byteLength / 1024).toFixed(0)}KB)`)
     } catch (e) {
       console.warn(`[LocalExport] Failed to load font ${font.name}:`, e)
     }
@@ -249,7 +245,7 @@ export async function exportVideoLocal(options: LocalExportOptions): Promise<voi
   const totalFrames = Math.ceil(durationSec * fps)
   const frameDurationUs = Math.round(1_000_000 / fps)
 
-  console.log(`[LocalExport] Hybrid compositor: ${totalFrames} frames @ ${fps}fps, ${width}x${height}`)
+  debug.log(`[LocalExport] Hybrid compositor: ${totalFrames} frames @ ${fps}fps, ${width}x${height}`)
 
   // ─── Layout ────────────────────────────────────────────────────
   const scoreH = Math.round(height * 0.45)
@@ -276,12 +272,12 @@ export async function exportVideoLocal(options: LocalExportOptions): Promise<voi
     // ─── 1. Load & embed fonts (one-time) ────────────────────────
     onProgress?.(0, totalFrames, 'Loading fonts...')
     const fontCSS = await loadFontsAsBase64()
-    console.log(`[LocalExport] Fonts embedded (${fontCSS.length} chars of CSS)`)
+    debug.log(`[LocalExport] Fonts embedded (${fontCSS.length} chars of CSS)`)
 
     // ─── 2. Decode audio ─────────────────────────────────────────
     onProgress?.(0, totalFrames, 'Decoding audio...')
     const audioBuffer = await decodeAudio(audioUrl)
-    console.log(`[LocalExport] Audio: ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.sampleRate}Hz`)
+    debug.log(`[LocalExport] Audio: ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.sampleRate}Hz`)
 
     // ─── 3. Resize PixiJS to export resolution ──────────────────
     const engine = window.__WATERFALL_ENGINE__
@@ -297,7 +293,7 @@ export async function exportVideoLocal(options: LocalExportOptions): Promise<voi
         pixiCanvas.style.width = `${width}px`
         pixiCanvas.style.height = `${waterfallH}px`
       }
-      console.log(`[LocalExport] PixiJS resized: ${originalWidth}x${originalHeight} → ${width}x${waterfallH}`)
+      debug.log(`[LocalExport] PixiJS resized: ${originalWidth}x${originalHeight} → ${width}x${waterfallH}`)
     }
 
     // ─── 4. Set up mp4-muxer ─────────────────────────────────────
@@ -397,7 +393,7 @@ export async function exportVideoLocal(options: LocalExportOptions): Promise<voi
         const fpsActual = frame / elapsed || 0
         const eta = frame > 0 ? Math.round((totalFrames - frame) / fpsActual) : 0
         onProgress?.(frame, totalFrames, `Rendering ${Math.round(frame / totalFrames * 100)}% — ETA ${eta}s`)
-        console.log(`[LocalExport] F${frame}/${totalFrames} (${Math.round(frame / totalFrames * 100)}%) — ${fpsActual.toFixed(1)}fps — ETA ${eta}s`)
+        debug.log(`[LocalExport] F${frame}/${totalFrames} (${Math.round(frame / totalFrames * 100)}%) — ${fpsActual.toFixed(1)}fps — ETA ${eta}s`)
       }
 
       // Yield + GC
@@ -433,7 +429,7 @@ export async function exportVideoLocal(options: LocalExportOptions): Promise<voi
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
 
     const sizeMb = (target.buffer.byteLength / 1024 / 1024).toFixed(1)
-    console.log(`[LocalExport] ✅ ${sizeMb}MB in ${totalTime}s`)
+    debug.log(`[LocalExport] ✅ ${sizeMb}MB in ${totalTime}s`)
     onComplete?.(url)
 
   } finally {
@@ -499,4 +495,9 @@ async function encodeAudioBuffer(encoder: AudioEncoder, audioBuffer: AudioBuffer
       await new Promise(r => setTimeout(r, 0))
     }
   }
-}
+
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { calculatePianoMetrics, isBlackKey, MIDI_MIN, MIDI_MAX } from '@/lib/engine/pianoMetrics'
+import { useAppStore } from '@/lib/store'
+import { debug } from '@/lib/debug'

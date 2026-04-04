@@ -6,7 +6,7 @@
 export async function getAudioOffset(audioUrl: string | null): Promise<number> {
     if (!audioUrl) return 0;
     try {
-        console.log('[AudioHelpers] Fetching audio to detect first peak offset...')
+        debug.log('[AudioHelpers] Fetching audio to detect first peak offset...')
         
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
@@ -33,7 +33,7 @@ export async function getAudioOffset(audioUrl: string | null): Promise<number> {
         for (let i = 0; i < data.length; i++) {
             if (Math.abs(data[i]) > threshold) {
                 const offset = i / decoded.sampleRate;
-                console.log(`[AudioHelpers] Found first audio peak at ${offset.toFixed(3)}s`);
+                debug.log(`[AudioHelpers] Found first audio peak at ${offset.toFixed(3)}s`);
                 
                 // Cleanup audio context to free memory
                 await ac.close();
@@ -46,4 +46,5 @@ export async function getAudioOffset(audioUrl: string | null): Promise<number> {
         console.error('[AudioHelpers] Audio offset detection failed:', err);
     }
     return 0;
-}
+
+import { debug } from '@/lib/debug'

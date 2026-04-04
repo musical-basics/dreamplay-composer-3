@@ -5,8 +5,6 @@
  * with Sprites. Per-frame render only swaps textures and sets tint/position.
  */
 
-import { Container, Sprite, Graphics, Texture } from 'pixi.js'
-import type { Application } from 'pixi.js'
 
 /** Returned by acquire() — the renderer sets properties on these sprites */
 export interface NoteItem {
@@ -53,7 +51,7 @@ export class NotePool {
     async init(): Promise<void> {
         this.bakeTextures()
         this.allocatePool()
-        console.log(
+        debug.log(
             `[SynthUI] NotePool initialized: ${this.poolSize} sprite containers, ` +
             `${BORDER_LEVELS + 8} pre-baked textures`
         )
@@ -225,4 +223,7 @@ export class NotePool {
         this.borderTextures = []
         this.rootContainer.destroy({ children: true })
     }
-}
+
+import { Container, Sprite, Graphics, Texture } from 'pixi.js'
+import type { Application } from 'pixi.js'
+import { debug } from '@/lib/debug'

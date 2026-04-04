@@ -2,7 +2,6 @@
  * AudioSynth — Piano Soundfont Playback via smplr
  */
 
-import type { NoteEvent } from '../types'
 
 interface SmplrSoundfont {
     start: (opts: {
@@ -65,7 +64,7 @@ export class AudioSynth {
         this._loading = true
 
         try {
-            console.log('[SynthUI Audio] Loading piano soundfont...')
+            debug.log('[SynthUI Audio] Loading piano soundfont...')
             const { Soundfont: SoundfontClass } = await import('smplr')
 
             this.soundfont = new SoundfontClass(this.audioContext, {
@@ -75,7 +74,7 @@ export class AudioSynth {
 
             await this.soundfont.loaded()
             this._loaded = true
-            console.log('[SynthUI Audio] ✅ Piano soundfont loaded')
+            debug.log('[SynthUI Audio] ✅ Piano soundfont loaded')
         } catch (err) {
             console.error('[SynthUI Audio] ❌ Failed to load soundfont:', err)
             this._loading = false
@@ -188,4 +187,6 @@ export class AudioSynth {
         this._loaded = false
         this._loading = false
     }
-}
+
+import type { NoteEvent } from '../types'
+import { debug } from '@/lib/debug'

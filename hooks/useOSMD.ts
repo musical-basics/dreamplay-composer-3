@@ -1,8 +1,5 @@
 'use client'
 
-import * as React from 'react'
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { OpenSheetMusicDisplay as OSMD } from 'opensheetmusicdisplay'
 
 interface UseOSMDOptions {
     autoResize?: boolean
@@ -64,7 +61,7 @@ export function useOSMD(
             }
 
             setIsLoaded(true)
-            console.log('[OSMD] Score loaded and rendered')
+            debug.log('[OSMD] Score loaded and rendered')
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Failed to load score'
             setError(msg)
@@ -92,4 +89,8 @@ export function useOSMD(
         totalMeasures,
         reload: loadScore,
     }
-}
+
+import * as React from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { OpenSheetMusicDisplay as OSMD } from 'opensheetmusicdisplay'
+import { debug } from '@/lib/debug'
