@@ -127,7 +127,7 @@ export const useAppStore = create<AppStore>()(
             jumpEffect: true,
             previewEffects: true,
             dynamicColor: true,
-            releaseTightness: 0,
+            releaseTightness: 0.2,
             scoreZoomX: 1,
             isLocked: true,
             cursorPosition: 0.2,
