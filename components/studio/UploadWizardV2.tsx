@@ -14,13 +14,17 @@ interface UploadWizardV2Props {
     onUploadAudio: (file: File) => Promise<void>
     onUploadXml: (file: File) => Promise<void>
     onUploadMidi: (file: File) => Promise<void>
+    onTranscribe?: () => void
+    transcribing?: boolean
 }
 
 export function UploadWizardV2({
     config,
     onUploadAudio,
     onUploadXml,
-    onUploadMidi
+    onUploadMidi,
+    onTranscribe,
+    transcribing = false,
 }: UploadWizardV2Props) {
     const [mode, setMode] = useState<UploadMode>(null)
     const [uploading, setUploading] = useState<string | null>(null)
@@ -322,23 +326,46 @@ export function UploadWizardV2({
                 </div>
 
                 {/* Completion */}
-                {isComplete && (
+                {isComplete && !transcribing && (
                     <div className="p-6 rounded-xl border border-green-500/30 bg-green-500/5 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-white mb-2">All Files Ready!</h3>
                         <p className="text-zinc-400 mb-6">
                             {mode === 'live-audio'
-                                ? "Your sheet music and recording are uploaded. AI will generate the MIDI when you enter the editor."
+                                ? "Your sheet music and recording are uploaded. Click below to generate MIDI with AI."
                                 : "You've successfully uploaded all necessary assets. You can now start mapping the score."}
                         </p>
                         <div className="flex flex-col gap-3">
-                            <Button className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-bold shadow-lg shadow-green-500/20" onClick={() => window.location.reload()}>
-                                Enter Editor <ArrowRight className="w-5 h-5 ml-2" />
-                            </Button>
+                            {mode === 'live-audio' && onTranscribe ? (
+                                <Button
+                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-bold shadow-lg shadow-purple-500/20"
+                                    onClick={onTranscribe}
+                                >
+                                    AI Transcribe Audio to MIDI
+                                </Button>
+                            ) : (
+                                <Button className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-bold shadow-lg shadow-green-500/20" onClick={() => window.location.reload()}>
+                                    Enter Editor <ArrowRight className="w-5 h-5 ml-2" />
+                                </Button>
+                            )}
                             <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
                                 <Info className="w-3 h-3" />
-                                <span>Note: Full interface will be unlocked.</span>
+                                <span>{mode === 'live-audio' ? 'AI will generate MIDI from your recording using the ByteDance model.' : 'Note: Full interface will be unlocked.'}</span>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Transcription in progress */}
+                {transcribing && (
+                    <div className="p-6 rounded-xl border border-purple-500/30 bg-purple-500/5 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Loader2 className="w-12 h-12 text-purple-500 mx-auto mb-4 animate-spin" />
+                        <h3 className="text-xl font-bold text-white mb-2">Transcribing on GPU...</h3>
+                        <p className="text-zinc-400 mb-2">
+                            The ByteDance AI model is analyzing your recording and generating a high-accuracy MIDI transcription. This typically takes 20-40 seconds.
+                        </p>
+                        <div className="mt-4 w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                            <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: '60%' }} />
                         </div>
                     </div>
                 )}

@@ -37,6 +37,7 @@ import type { SongConfig, ParsedMidi, BeatAnchor, XMLEvent, V5MapperState } from
 import { EXPORT_QUALITY_LABELS, type ExportQualityPreset } from '@/lib/types/renderJob'
 import { fetchConfigById, updateConfigAction, generateUploadUrlAction } from '@/app/actions/config'
 import { getAudioOffset } from '@/lib/engine/AudioHelpers'
+import { createClient } from '@supabase/supabase-js'
 
 export default function AdminEditor() {
     const params = useParams()
@@ -57,6 +58,8 @@ export default function AdminEditor() {
     const [xmlEvents, setXmlEvents] = useState<XMLEvent[]>([])
     const xmlEventsRef = useRef<XMLEvent[]>([]) // Persists fermata data across OSMD re-renders
     const [v5State, setV5State] = useState<V5MapperState | null>(null)
+    const [transcribing, setTranscribing] = useState(false)
+    const [transcriptionJobId, setTranscriptionJobId] = useState<string | null>(null)
     const hasAutoMappedRef = useRef(false)
     const [displayTime, setDisplayTime] = useState(0)
     const displayRafRef = useRef<number>(0)
@@ -149,6 +152,92 @@ export default function AdminEditor() {
         }
         load()
     }, [configId, setAnchors, setBeatAnchors, setIsLevel2Mode, setSubdivision, setReleaseTightness])
+
+    // -----------------------------------------------------------------------
+    // Supabase Realtime: watch for midi_url to be populated by AI transcription
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+        if (config?.midi_url) return // already has MIDI, no need to watch
+
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        if (!url || !key) return
+
+        const sb = createClient(url, key)
+        const channel = sb
+            .channel(`config-midi-watch:${configId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'composer',
+                    table: 'configurations',
+                    filter: `id=eq.${configId}`,
+                },
+                (payload) => {
+                    const newMidiUrl = payload.new?.midi_url
+                    if (newMidiUrl) {
+                        console.log('[Realtime] AI MIDI ready:', newMidiUrl)
+                        setTranscribing(false)
+                        setConfig((prev) => prev ? { ...prev, midi_url: newMidiUrl } : prev)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => { sb.removeChannel(channel) }
+    }, [configId, config?.midi_url])
+
+    // -----------------------------------------------------------------------
+    // Transcription trigger: queue job when live-audio mode completes
+    // -----------------------------------------------------------------------
+    const handleTranscribe = async () => {
+        if (!config?.audio_url || transcribing) return
+        setTranscribing(true)
+
+        try {
+            const res = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    configId,
+                    audioUrl: config.audio_url,
+                }),
+            })
+            const data = await res.json()
+            if (data.jobId) {
+                setTranscriptionJobId(data.jobId)
+                console.log('[Transcribe] Job queued:', data.jobId)
+            }
+        } catch (err) {
+            console.error('[Transcribe] Failed to queue:', err)
+            setTranscribing(false)
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Poll transcription status as fallback (in case Realtime isn't configured)
+    // -----------------------------------------------------------------------
+    useEffect(() => {
+        if (!transcriptionJobId || !transcribing) return
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/transcribe/status?jobId=${transcriptionJobId}`)
+                const data = await res.json()
+                if (data.state === 'completed' && data.returnvalue?.finalMidiUrl) {
+                    setTranscribing(false)
+                    setConfig((prev) => prev ? { ...prev, midi_url: data.returnvalue.finalMidiUrl } : prev)
+                    clearInterval(interval)
+                } else if (data.state === 'failed') {
+                    setTranscribing(false)
+                    clearInterval(interval)
+                }
+            } catch { /* non-fatal */ }
+        }, 3000)
+
+        return () => clearInterval(interval)
+    }, [transcriptionJobId, transcribing])
 
     useEffect(() => {
         if (!config?.midi_url) return
@@ -527,6 +616,8 @@ export default function AdminEditor() {
                             onUploadAudio={handleAudioUpload}
                             onUploadXml={handleXmlUpload}
                             onUploadMidi={handleMidiUpload}
+                            onTranscribe={handleTranscribe}
+                            transcribing={transcribing}
                         />
                     )}
                 </div>
