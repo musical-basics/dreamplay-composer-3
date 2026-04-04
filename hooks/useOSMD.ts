@@ -55,6 +55,11 @@ export function useOSMD(
 
             await osmd.load(url)
 
+            // Ignore system/page breaks embedded in MusicXML
+            osmd.EngravingRules.NewSystemAtXMLNewSystemAttribute = false
+            osmd.EngravingRules.NewPageAtXMLNewPageAttribute = false
+            osmd.EngravingRules.NewSystemAtXMLNewPageAttribute = false
+
             // Force container to be very wide before render so OSMD
             // lays out everything in a single horizontal system
             const container = containerRef.current!
