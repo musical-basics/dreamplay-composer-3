@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-/** Server-side Supabase client (service role) */
+/** Server-side Supabase client (service role) — targets composer schema */
 export function createServerSupabase() {
     return createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { db: { schema: 'composer' } }
     )
 }
 

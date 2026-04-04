@@ -39,13 +39,13 @@ export default function TranscribePage() {
         supabaseRef.current = sb
 
         const channel = sb
-            .channel(`song_configs:${configId}`)
+            .channel(`configurations:${configId}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
-                    schema: 'public',
-                    table: 'song_configs',
+                    schema: 'composer',
+                    table: 'configurations',
                     filter: `id=eq.${configId}`,
                 },
                 (payload) => {

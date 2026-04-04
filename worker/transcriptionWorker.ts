@@ -31,7 +31,8 @@ const s3 = createR2Client()
 
 const supabase = createClient(
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { db: { schema: 'composer' } }
 )
 
 const MODAL_URL = process.env.MODAL_TRANSCRIBER_URL!
@@ -81,10 +82,10 @@ const worker = new Worker(
         const finalMidiUrl = getR2PublicUrl(midiKey)
         console.log(`[transcription] Uploaded MIDI to ${finalMidiUrl}`)
 
-        // 4. Update Supabase
+        // 4. Update Supabase (composer.configurations)
         const { error } = await supabase
-            .from('song_configs')
-            .update({ midi_url: finalMidiUrl })
+            .from('configurations')
+            .update({ midi_url: finalMidiUrl, updated_at: new Date().toISOString() })
             .eq('id', configId)
 
         if (error) {
