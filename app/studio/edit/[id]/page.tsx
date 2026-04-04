@@ -696,16 +696,18 @@ export default function AdminEditor() {
                                     <FileMusic className="w-3 h-3" />
                                     <span>Sheet</span>
                                 </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setShowWaveformTimeline(!showWaveformTimeline)}
-                                    className={`h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${showWaveformTimeline ? 'text-purple-400 bg-purple-500/10 shadow-[inset_0_0_10px_rgba(168,85,247,0.1)]' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                    title="Toggle Audio Waveform"
-                                >
-                                    <Activity className="w-3 h-3" />
-                                    <span>Waveform</span>
-                                </Button>
+                                {isAdmin && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setShowWaveformTimeline(!showWaveformTimeline)}
+                                        className={`h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${showWaveformTimeline ? 'text-purple-400 bg-purple-500/10 shadow-[inset_0_0_10px_rgba(168,85,247,0.1)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                        title="Toggle Audio Waveform"
+                                    >
+                                        <Activity className="w-3 h-3" />
+                                        <span>Waveform</span>
+                                    </Button>
+                                )}
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -764,44 +766,46 @@ export default function AdminEditor() {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            {/* View Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
-                                        Settings
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-300">
-                                    <DropdownMenuLabel>Interface Views</DropdownMenuLabel>
-                                    <DropdownMenuSeparator className="bg-zinc-800" />
-                                    {isAdmin && (
-                                        <DropdownMenuCheckboxItem checked={showAnchorSidebar} onCheckedChange={setShowAnchorSidebar}>
-                                            Anchor Sidebar
-                                        </DropdownMenuCheckboxItem>
-                                    )}
-                                    <DropdownMenuCheckboxItem checked={showMidiTimeline} onCheckedChange={setShowMidiTimeline}>
-                                        MIDI Piano Roll
-                                    </DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem checked={showWaveformTimeline} onCheckedChange={setShowWaveformTimeline}>
-                                        Audio Waveform
-                                    </DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem checked={showScore} onCheckedChange={setShowScore}>
-                                        Sheet Music
-                                    </DropdownMenuCheckboxItem>
-                                    <DropdownMenuCheckboxItem checked={showWaterfall} onCheckedChange={setShowWaterfall}>
-                                        Falling Keys Mode
-                                    </DropdownMenuCheckboxItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            {isAdmin && (
+                                <>
+                                    {/* View Dropdown */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
+                                                Settings
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-300">
+                                            <DropdownMenuLabel>Interface Views</DropdownMenuLabel>
+                                            <DropdownMenuSeparator className="bg-zinc-800" />
+                                            <DropdownMenuCheckboxItem checked={showAnchorSidebar} onCheckedChange={setShowAnchorSidebar}>
+                                                Anchor Sidebar
+                                            </DropdownMenuCheckboxItem>
+                                            <DropdownMenuCheckboxItem checked={showMidiTimeline} onCheckedChange={setShowMidiTimeline}>
+                                                MIDI Piano Roll
+                                            </DropdownMenuCheckboxItem>
+                                            <DropdownMenuCheckboxItem checked={showWaveformTimeline} onCheckedChange={setShowWaveformTimeline}>
+                                                Audio Waveform
+                                            </DropdownMenuCheckboxItem>
+                                            <DropdownMenuCheckboxItem checked={showScore} onCheckedChange={setShowScore}>
+                                                Sheet Music
+                                            </DropdownMenuCheckboxItem>
+                                            <DropdownMenuCheckboxItem checked={showWaterfall} onCheckedChange={setShowWaterfall}>
+                                                Falling Keys Mode
+                                            </DropdownMenuCheckboxItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
 
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-zinc-700 text-black hover:text-black h-8"
-                                onClick={() => router.push(`/studio/audit/${configId}`)}
-                            >
-                                Score Audit
-                            </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-zinc-700 text-black hover:text-black h-8"
+                                        onClick={() => router.push(`/studio/audit/${configId}`)}
+                                    >
+                                        Score Audit
+                                    </Button>
+                                </>
+                            )}
 
                             <Button
                                 variant="outline"
@@ -814,38 +818,42 @@ export default function AdminEditor() {
                                 {isExporting ? 'Starting...' : 'Export Video'}
                             </Button>
 
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-zinc-700 text-black hover:text-black h-8"
-                                onClick={() => handleStartCloudExport(5)}
-                                disabled={isExporting}
-                            >
-                                5s Test
-                            </Button>
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
-                                        {EXPORT_QUALITY_LABELS[exportQualityPreset]}
+                            {isAdmin && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-zinc-700 text-black hover:text-black h-8"
+                                        onClick={() => handleStartCloudExport(5)}
+                                        disabled={isExporting}
+                                    >
+                                        5s Test
                                     </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-800 text-zinc-300">
-                                    <DropdownMenuLabel>Export Quality</DropdownMenuLabel>
-                                    <DropdownMenuSeparator className="bg-zinc-800" />
-                                    <DropdownMenuRadioGroup value={exportQualityPreset} onValueChange={(value) => setExportQualityPreset(value as ExportQualityPreset)}>
-                                        <DropdownMenuRadioItem value="fast">
-                                            Fast
-                                        </DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="balanced">
-                                            Balanced
-                                        </DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="master">
-                                            Master
-                                        </DropdownMenuRadioItem>
-                                    </DropdownMenuRadioGroup>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
+                                                {EXPORT_QUALITY_LABELS[exportQualityPreset]}
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-48 bg-zinc-900 border-zinc-800 text-zinc-300">
+                                            <DropdownMenuLabel>Export Quality</DropdownMenuLabel>
+                                            <DropdownMenuSeparator className="bg-zinc-800" />
+                                            <DropdownMenuRadioGroup value={exportQualityPreset} onValueChange={(value) => setExportQualityPreset(value as ExportQualityPreset)}>
+                                                <DropdownMenuRadioItem value="fast">
+                                                    Fast
+                                                </DropdownMenuRadioItem>
+                                                <DropdownMenuRadioItem value="balanced">
+                                                    Balanced
+                                                </DropdownMenuRadioItem>
+                                                <DropdownMenuRadioItem value="master">
+                                                    Master
+                                                </DropdownMenuRadioItem>
+                                            </DropdownMenuRadioGroup>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </>
+                            )}
 
                             {lastExportJobId && (
                                 <span className="text-[11px] text-zinc-400 font-mono">
