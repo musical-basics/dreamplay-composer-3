@@ -902,7 +902,6 @@ export default function AdminEditor() {
                         <div className="px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/40 space-y-4">
                             {/* Working Files */}
                             <div>
-                                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Working Files</div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
                                         <div className="flex items-center gap-2 text-[11px] text-blue-300 font-medium">
@@ -942,7 +941,6 @@ export default function AdminEditor() {
 
                             {/* Visual Appearance */}
                             <div>
-                                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Visual Appearance</div>
                                 <div className="flex flex-wrap items-end gap-4">
                                 <div className="flex flex-col gap-1.5 min-w-0 flex-[1_1_720px]">
                                     <ScoreControls
