@@ -1,0 +1,228 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import type { ParsedMidi, Anchor, BeatAnchor, SongConfig } from './types'
+
+// ─── Store Interface ───────────────────────────────────────────────
+// CRITICAL: currentTime and animation frame data are NEVER stored here.
+// They live in PlaybackManager (polled by PixiJS Ticker) to avoid
+// React re-rendering 60+ times per second.
+
+export type AppMode = 'PLAYBACK' | 'RECORD'
+
+interface AppStore {
+    // === Synth State ===
+    isPlaying: boolean
+    tempo: number // percentage (50-200), default 100
+    leftHandActive: boolean
+    rightHandActive: boolean
+    parsedMidi: ParsedMidi | null
+    songTitle: string
+    duration: number // total song duration in seconds
+    zoomLevel: number // pixels per second for waterfall
+    velocityKeyColor: boolean // true = keys match note color, false = default purple
+    noteGlow: boolean // true = glow aura on active notes
+    showScore: boolean // show sheet music view
+    showWaterfall: boolean // show waterfall view
+    showMidiTimeline: boolean // show MIDI timeline
+    showWaveformTimeline: boolean // show Waveform timeline
+    showAnchorSidebar: boolean // show Anchor sidebar
+
+    // === Score Follower State ===
+    anchors: Anchor[]
+    beatAnchors: BeatAnchor[]
+    revealMode: 'OFF' | 'NOTE' | 'CURTAIN'
+    darkMode: boolean
+    highlightNote: boolean
+    glowEffect: boolean
+    popEffect: boolean
+    jumpEffect: boolean
+    previewEffects: boolean
+    dynamicColor: boolean
+    releaseTightness: number
+    scoreZoomX: number
+    isLocked: boolean
+    cursorPosition: number
+    curtainLookahead: number
+    showCursor: boolean
+    showMarkers: boolean
+    isLevel2Mode: boolean
+    subdivision: number
+    currentMeasure: number
+    mode: AppMode
+
+    // === Active Configuration ===
+    activeConfig: SongConfig | null
+
+    // === Synth Actions ===
+    setPlaying: (playing: boolean) => void
+    setTempo: (tempo: number) => void
+    toggleLeftHand: () => void
+    toggleRightHand: () => void
+    loadMidi: (midi: ParsedMidi) => void
+    clearMidi: () => void
+    setZoomLevel: (zoom: number) => void
+    setVelocityKeyColor: (on: boolean) => void
+    setNoteGlow: (on: boolean) => void
+    setShowScore: (on: boolean) => void
+    setShowWaterfall: (on: boolean) => void
+    setShowMidiTimeline: (on: boolean) => void
+    setShowWaveformTimeline: (on: boolean) => void
+    setShowAnchorSidebar: (on: boolean) => void
+
+    // === Score Follower Actions ===
+    setAnchors: (anchors: Anchor[]) => void
+    setBeatAnchors: (beatAnchors: BeatAnchor[] | ((prev: BeatAnchor[]) => BeatAnchor[])) => void
+    setRevealMode: (mode: 'OFF' | 'NOTE' | 'CURTAIN') => void
+    setDarkMode: (dark: boolean) => void
+    setHighlightNote: (highlight: boolean) => void
+    setGlowEffect: (glow: boolean) => void
+    setPopEffect: (pop: boolean) => void
+    setJumpEffect: (jump: boolean) => void
+    setPreviewEffects: (preview: boolean) => void
+    setDynamicColor: (dynamic: boolean) => void
+    setReleaseTightness: (tightness: number) => void
+    setScoreZoomX: (zoom: number) => void
+    setIsLocked: (locked: boolean) => void
+    setCursorPosition: (pos: number) => void
+    setCurtainLookahead: (lookahead: number) => void
+    setShowCursor: (show: boolean) => void
+    setShowMarkers: (show: boolean) => void
+    setIsLevel2Mode: (level2: boolean) => void
+    setSubdivision: (sub: number) => void
+    setCurrentMeasure: (measure: number) => void
+    setMode: (mode: AppMode) => void
+
+    // === Config Actions ===
+    setActiveConfig: (config: SongConfig | null) => void
+}
+
+export const useAppStore = create<AppStore>()(
+    persist(
+        (set) => ({
+            // === Synth Initial State ===
+            isPlaying: false,
+            tempo: 100,
+            leftHandActive: true,
+            rightHandActive: true,
+            parsedMidi: null,
+            songTitle: '',
+            duration: 0,
+            zoomLevel: 200,
+            velocityKeyColor: false,
+            noteGlow: true,
+            showScore: true,
+            showWaterfall: false, // Default to false per redesign plan
+            showMidiTimeline: false,
+            showWaveformTimeline: false,
+            showAnchorSidebar: false,
+
+            // === Score Follower Initial State ===
+            anchors: [{ measure: 1, time: 0 }],
+            beatAnchors: [],
+            revealMode: 'OFF',
+            darkMode: false,
+            highlightNote: true,
+            glowEffect: true,
+            popEffect: false,
+            jumpEffect: true,
+            previewEffects: true,
+            dynamicColor: true,
+            releaseTightness: 0,
+            scoreZoomX: 1,
+            isLocked: true,
+            cursorPosition: 0.2,
+            curtainLookahead: 0.25,
+            showCursor: true,
+            showMarkers: true,
+            isLevel2Mode: false,
+            subdivision: 4,
+            currentMeasure: 1,
+            mode: 'PLAYBACK',
+
+            // === Active Configuration ===
+            activeConfig: null,
+
+            // === Synth Actions ===
+            setPlaying: (playing) => set({ isPlaying: playing }),
+            setTempo: (tempo) => set({ tempo }),
+            toggleLeftHand: () => set((s) => ({ leftHandActive: !s.leftHandActive })),
+            toggleRightHand: () => set((s) => ({ rightHandActive: !s.rightHandActive })),
+            loadMidi: (midi) =>
+                set({
+                    parsedMidi: midi,
+                    songTitle: midi.name,
+                    duration: midi.durationSec,
+                }),
+            clearMidi: () =>
+                set({
+                    parsedMidi: null,
+                    songTitle: '',
+                    duration: 0,
+                    isPlaying: false,
+                }),
+            setZoomLevel: (zoom) => set({ zoomLevel: zoom }),
+            setVelocityKeyColor: (velocityKeyColor) => set({ velocityKeyColor }),
+            setNoteGlow: (noteGlow) => set({ noteGlow }),
+            setShowScore: (showScore) => set({ showScore }),
+            setShowWaterfall: (showWaterfall) => set({ showWaterfall }),
+            setShowMidiTimeline: (showMidiTimeline) => set({ showMidiTimeline }),
+            setShowWaveformTimeline: (showWaveformTimeline) => set({ showWaveformTimeline }),
+            setShowAnchorSidebar: (showAnchorSidebar) => set({ showAnchorSidebar }),
+
+            // === Score Follower Actions ===
+            setAnchors: (anchors) => set({ anchors }),
+            setBeatAnchors: (beatAnchors) => set((s) => ({ beatAnchors: typeof beatAnchors === 'function' ? beatAnchors(s.beatAnchors) : beatAnchors })),
+            setRevealMode: (revealMode) => set({ revealMode }),
+            setDarkMode: (darkMode) => set({ darkMode }),
+            setHighlightNote: (highlightNote) => set({ highlightNote }),
+            setGlowEffect: (glowEffect) => set({ glowEffect }),
+            setPopEffect: (popEffect) => set({ popEffect }),
+            setJumpEffect: (jumpEffect) => set({ jumpEffect }),
+            setPreviewEffects: (previewEffects) => set({ previewEffects }),
+            setDynamicColor: (dynamicColor) => set({ dynamicColor }),
+            setReleaseTightness: (releaseTightness) => set({ releaseTightness: Math.max(0, Math.min(1, releaseTightness)) }),
+            setScoreZoomX: (scoreZoomX) => set({ scoreZoomX: Math.max(0.5, Math.min(2.5, scoreZoomX)) }),
+            setIsLocked: (isLocked) => set({ isLocked }),
+            setCursorPosition: (cursorPosition) => set({ cursorPosition }),
+            setCurtainLookahead: (curtainLookahead) => set({ curtainLookahead }),
+            setShowCursor: (showCursor) => set({ showCursor }),
+            setShowMarkers: (showMarkers) => set({ showMarkers }),
+            setIsLevel2Mode: (isLevel2Mode) => set({ isLevel2Mode }),
+            setSubdivision: (subdivision) => set({ subdivision }),
+            setCurrentMeasure: (currentMeasure) => set({ currentMeasure }),
+            setMode: (mode) => set({ mode }),
+
+            // === Config Actions ===
+            setActiveConfig: (activeConfig) => set({ activeConfig }),
+        }),
+        {
+            name: 'ultimate-pianist-settings',
+            // Only persist UI preferences — NOT playback state, MIDI data, or transient state
+            partialize: (state) => ({
+                revealMode: state.revealMode,
+                darkMode: state.darkMode,
+                highlightNote: state.highlightNote,
+                glowEffect: state.glowEffect,
+                popEffect: state.popEffect,
+                jumpEffect: state.jumpEffect,
+                previewEffects: state.previewEffects,
+                dynamicColor: state.dynamicColor,
+                releaseTightness: state.releaseTightness,
+                scoreZoomX: state.scoreZoomX,
+                showCursor: state.showCursor,
+                showScore: state.showScore,
+                showWaterfall: state.showWaterfall,
+                showMidiTimeline: state.showMidiTimeline,
+                showWaveformTimeline: state.showWaveformTimeline,
+                showAnchorSidebar: state.showAnchorSidebar,
+                velocityKeyColor: state.velocityKeyColor,
+                noteGlow: state.noteGlow,
+                cursorPosition: state.cursorPosition,
+                curtainLookahead: state.curtainLookahead,
+            }),
+        }
+    )
+)
+
+// Legacy alias for synth-only components
+export const useSynthStore = useAppStore

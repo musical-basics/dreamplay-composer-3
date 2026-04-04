@@ -29,6 +29,14 @@
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -51,11 +59,25 @@
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.439 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), 'Geist Fallback';
   --font-mono: var(--font-geist-mono), 'Geist Mono Fallback';
+  --font-outfit: var(--font-outfit), 'Outfit Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -84,6 +106,14 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 @layer base {
@@ -94,3 +124,49 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ============================================
+   VexFlow / DreamFlow: Isolate SVG from global font cascade.
+   Tailwind's `font-sans` on <body> sets font-family via a CSS class,
+   which overrides SVG presentation attributes (zero specificity).
+   Without this rule, music glyphs render with Geist instead of Bravura.
+   ============================================ */
+.vexflow-container {
+    font-family: initial;
+}
+
+/* ============================================
+   Studio Mode: Hides everything except the score
+   for clean video recording (from Score Follower).
+   ============================================ */
+body.studio-mode [data-studio-hide] {
+    display: none !important;
+}
+
+body.studio-mode #root {
+    background: white !important;
+}
+
+body.studio-mode [data-studio-main] {
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+    flex: none !important;
+}
+
+body.studio-mode [data-studio-main]>div {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Deterministic rendering: kill all CSS transitions/animations
+   to prevent inter-frame blurring during screenshot capture */
+body.studio-mode *,
+body.studio-mode *::before,
+body.studio-mode *::after {
+    transition: none !important;
+    animation: none !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+}
+
