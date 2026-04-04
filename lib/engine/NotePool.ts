@@ -5,6 +5,9 @@
  * with Sprites. Per-frame render only swaps textures and sets tint/position.
  */
 
+import { Container, Sprite, Graphics, Texture } from 'pixi.js'
+import type { Application } from 'pixi.js'
+import { debug } from '@/lib/debug'
 
 /** Returned by acquire() — the renderer sets properties on these sprites */
 export interface NoteItem {
@@ -223,7 +226,4 @@ export class NotePool {
         this.borderTextures = []
         this.rootContainer.destroy({ children: true })
     }
-
-import { Container, Sprite, Graphics, Texture } from 'pixi.js'
-import type { Application } from 'pixi.js'
-import { debug } from '@/lib/debug'
+}

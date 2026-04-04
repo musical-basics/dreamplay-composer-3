@@ -1,3 +1,4 @@
+import { debug } from '@/lib/debug'
 /**
  * Audio Helpers — Shared utilities for peak detection and audio analysis.
  * Replaces functionality previously housed in the legacy AutoMapper.
@@ -46,5 +47,4 @@ export async function getAudioOffset(audioUrl: string | null): Promise<number> {
         console.error('[AudioHelpers] Audio offset detection failed:', err);
     }
     return 0;
-
-import { debug } from '@/lib/debug'
+}

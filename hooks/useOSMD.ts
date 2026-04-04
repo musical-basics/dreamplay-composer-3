@@ -1,5 +1,9 @@
 'use client'
 
+import * as React from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { OpenSheetMusicDisplay as OSMD } from 'opensheetmusicdisplay'
+import { debug } from '@/lib/debug'
 
 interface UseOSMDOptions {
     autoResize?: boolean
@@ -89,8 +93,4 @@ export function useOSMD(
         totalMeasures,
         reload: loadScore,
     }
-
-import * as React from 'react'
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { OpenSheetMusicDisplay as OSMD } from 'opensheetmusicdisplay'
-import { debug } from '@/lib/debug'
+}

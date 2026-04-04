@@ -11,6 +11,11 @@
  * serialized SVG so the Image element can render music glyphs.
  */
 
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { calculatePianoMetrics, isBlackKey, MIDI_MIN, MIDI_MAX } from '@/lib/engine/pianoMetrics'
+import { useAppStore } from '@/lib/store'
+import { debug } from '@/lib/debug'
 
 // ─── Types ────────────────────────────────────────────────────────
 export interface LocalExportOptions {
@@ -495,9 +500,4 @@ async function encodeAudioBuffer(encoder: AudioEncoder, audioBuffer: AudioBuffer
       await new Promise(r => setTimeout(r, 0))
     }
   }
-
-import { Muxer, ArrayBufferTarget } from 'mp4-muxer'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { calculatePianoMetrics, isBlackKey, MIDI_MIN, MIDI_MAX } from '@/lib/engine/pianoMetrics'
-import { useAppStore } from '@/lib/store'
-import { debug } from '@/lib/debug'
+}

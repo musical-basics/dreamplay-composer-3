@@ -5,6 +5,8 @@
 // Pitch-aware, duration-aware, with interactive ghost anchor workflow.
 // Does NOT modify V3/V4 code — fully self-contained.
 
+import type { NoteEvent, Anchor, BeatAnchor, XMLEvent, V5MapperState } from '../types'
+import { debug } from '@/lib/debug'
 
 // Re-export audio offset helper from the shared module
 export { getAudioOffset } from './AudioHelpers'
@@ -912,6 +914,4 @@ export function runV5ToEnd(
 
     debug.log(`[V5] Complete. ${current.anchors.length} Measure Anchors, ${current.beatAnchors.length} Beat Anchors.`)
     return { ...current, status: 'done' }
-
-import type { NoteEvent, Anchor, BeatAnchor, XMLEvent, V5MapperState } from '../types'
-import { debug } from '@/lib/debug'
+}

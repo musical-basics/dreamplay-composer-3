@@ -2,6 +2,8 @@
  * AudioSynth — Piano Soundfont Playback via smplr
  */
 
+import type { NoteEvent } from '../types'
+import { debug } from '@/lib/debug'
 
 interface SmplrSoundfont {
     start: (opts: {
@@ -187,6 +189,4 @@ export class AudioSynth {
         this._loaded = false
         this._loading = false
     }
-
-import type { NoteEvent } from '../types'
-import { debug } from '@/lib/debug'
+}

@@ -1,5 +1,15 @@
 'use client'
 
+import * as React from 'react'
+import { Toolbar } from './Toolbar'
+import { PianoKeyboard } from './PianoKeyboard'
+import { TransportBar } from './TransportBar'
+import { useAppStore } from '@/lib/store'
+import { parseMidiFile } from '@/lib/midi/parser'
+import { getPlaybackManager, destroyPlaybackManager } from '@/lib/engine/PlaybackManager'
+import { AudioSynth } from '@/lib/engine/AudioSynth'
+import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
+import { debug } from '@/lib/debug'
 
 interface AppLayoutProps {
     canvasContainerRef?: React.RefObject<HTMLDivElement | null>
@@ -335,14 +345,4 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ canvasContainerRef }) => {
     )
 }
 
-
-import * as React from 'react'
-import { Toolbar } from './Toolbar'
-import { PianoKeyboard } from './PianoKeyboard'
-import { TransportBar } from './TransportBar'
-import { useAppStore } from '@/lib/store'
-import { parseMidiFile } from '@/lib/midi/parser'
-import { getPlaybackManager, destroyPlaybackManager } from '@/lib/engine/PlaybackManager'
-import { AudioSynth } from '@/lib/engine/AudioSynth'
-import type { WaterfallRenderer } from '@/lib/engine/WaterfallRenderer'
-import { debug } from '@/lib/debug'
+export default AppLayout

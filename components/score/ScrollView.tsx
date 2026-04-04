@@ -1,5 +1,12 @@
 'use client'
 
+import * as React from 'react'
+import { useRef, useEffect, useCallback, useState, memo } from 'react'
+import { useOSMD } from '@/hooks/useOSMD'
+import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
+import type { Anchor, BeatAnchor, ParsedMidi, XMLEvent } from '@/lib/types'
+import { useAppStore } from '@/lib/store'
+import { debug } from '@/lib/debug'
 
 interface ScrollViewProps {
     xmlUrl: string | null
@@ -957,11 +964,4 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 }
 
 export const ScrollView = memo(ScrollViewComponent)
-
-import * as React from 'react'
-import { useRef, useEffect, useCallback, useState, memo } from 'react'
-import { useOSMD } from '@/hooks/useOSMD'
-import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
-import type { Anchor, BeatAnchor, ParsedMidi, XMLEvent } from '@/lib/types'
-import { useAppStore } from '@/lib/store'
-import { debug } from '@/lib/debug'
+export default ScrollView

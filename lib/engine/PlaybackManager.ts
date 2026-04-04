@@ -1,3 +1,4 @@
+import { debug } from '@/lib/debug'
 /**
  * PlaybackManager — Master Clock (Singleton, outside React)
  *
@@ -303,5 +304,4 @@ export function destroyPlaybackManager(): void {
         _instance.destroy()
         _instance = null
     }
-
-import { debug } from '@/lib/debug'
+}

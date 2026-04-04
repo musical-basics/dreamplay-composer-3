@@ -2,12 +2,19 @@
  * WaterfallRenderer — PixiJS Canvas + Zero-Allocation Render Loop
  */
 
+import { Application, Graphics, Container, Sprite } from 'pixi.js'
+import type { NoteEvent, ParsedMidi } from '../types'
+import { NotePool } from './NotePool'
+import {
     calculatePianoMetricsFromDOM,
     calculatePianoMetrics,
     isBlackKey,
     MIDI_MIN,
     MIDI_MAX,
 } from './pianoMetrics'
+import type { PlaybackManager } from './PlaybackManager'
+import { useAppStore } from '../store'
+import { debug } from '@/lib/debug'
 
 function velocityToColor(velocity: number): number {
     const v = Math.max(0, Math.min(127, velocity))
@@ -606,11 +613,4 @@ export class WaterfallRenderer {
 
         debug.log('[SynthUI] WaterfallRenderer destroyed')
     }
-
-import { Application, Graphics, Container, Sprite } from 'pixi.js'
-import type { NoteEvent, ParsedMidi } from '../types'
-import { NotePool } from './NotePool'
-import {
-import type { PlaybackManager } from './PlaybackManager'
-import { useAppStore } from '../store'
-import { debug } from '@/lib/debug'
+}
