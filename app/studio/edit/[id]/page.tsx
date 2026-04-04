@@ -857,48 +857,60 @@ export default function AdminEditor() {
                                 </span>
                             )}
 
-                            <div className="w-px h-6 bg-zinc-700 mx-1" />
+                        </div>
+                    </div>
 
-                            {/* Transport */}
-                            <span className="font-mono text-xs text-zinc-400 w-12 text-right tabular-nums">
-                                {formatTime(displayTime)}
-                            </span>
-                            <div className="w-36">
-                                <Slider
-                                    value={[displayTime]}
-                                    min={0}
-                                    max={duration || 100}
-                                    step={0.1}
-                                    onValueChange={(v) => handleSeek(v[0])}
-                                    className="[&_[data-slot=slider-track]]:bg-zinc-700 [&_[data-slot=slider-range]]:bg-purple-500"
-                                />
-                            </div>
-                            <span className="font-mono text-xs text-zinc-400 w-12 tabular-nums">
-                                {formatTime(duration)}
-                            </span>
-
-                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.max(0, displayTime - 5))} className="text-zinc-400 h-8 px-1" title="Skip back 5s">
-                                <SkipBack className="w-3.5 h-3.5" />
+                    {/* Row 2: Transport Bar */}
+                    <div className="flex items-center gap-3 px-4 py-2 bg-zinc-950 border-b border-zinc-800/50">
+                        {/* Play/Pause — large centered button */}
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.max(0, displayTime - 5))} className="text-zinc-500 hover:text-white h-8 w-8 p-0" title="Skip back 5s">
+                                <SkipBack className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.max(0, displayTime - 0.05))} className="text-zinc-400 h-8 px-1" title="Back 1 frame">
-                                <ChevronLeft className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.max(0, displayTime - 0.05))} className="text-zinc-500 hover:text-white h-8 w-8 p-0" title="Back 1 frame">
+                                <ChevronLeft className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" onClick={handlePlayPause} className="bg-purple-600 hover:bg-purple-700 text-white rounded-full w-8 h-8 p-0">
-                                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                            <Button onClick={handlePlayPause} className="bg-purple-600 hover:bg-purple-700 text-white rounded-full w-10 h-10 p-0 shadow-lg shadow-purple-500/20">
+                                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.min(duration, displayTime + 0.05))} className="text-zinc-400 h-8 px-1" title="Forward 1 frame">
-                                <ChevronRight className="w-3.5 h-3.5" />
+                            <Button variant="ghost" size="sm" onClick={() => handleSeek(Math.min(duration, displayTime + 0.05))} className="text-zinc-500 hover:text-white h-8 w-8 p-0" title="Forward 1 frame">
+                                <ChevronRight className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={handleStop} className="text-zinc-400 h-8 px-1">
-                                <Square className="w-3.5 h-3.5" />
-                            </Button>
-
-                            <div className="w-px h-6 bg-zinc-700 mx-1" />
-
-                            <Button size="sm" onClick={toggleRecordMode} className={`text-white min-w-[100px] ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-zinc-700 hover:bg-zinc-600'}`}>
-                                ⏺ {isRecording ? `Rec (M${nextMeasure})` : 'Record'}
+                            <Button variant="ghost" size="sm" onClick={handleStop} className="text-zinc-500 hover:text-white h-8 w-8 p-0" title="Stop">
+                                <Square className="w-4 h-4" />
                             </Button>
                         </div>
+
+                        {/* Time display */}
+                        <div className="flex items-center gap-2 bg-zinc-900 rounded-lg px-3 py-1.5 border border-zinc-800">
+                            <span className="font-mono text-sm text-purple-400 w-14 text-right tabular-nums font-semibold">
+                                {formatTime(displayTime)}
+                            </span>
+                            <span className="text-zinc-600 text-xs">/</span>
+                            <span className="font-mono text-sm text-zinc-500 w-14 tabular-nums">
+                                {formatTime(duration)}
+                            </span>
+                        </div>
+
+                        {/* Seek slider — takes remaining space */}
+                        <div className="flex-1 min-w-0">
+                            <Slider
+                                value={[displayTime]}
+                                min={0}
+                                max={duration || 100}
+                                step={0.1}
+                                onValueChange={(v) => handleSeek(v[0])}
+                                className="[&_[data-slot=slider-track]]:bg-zinc-800 [&_[data-slot=slider-range]]:bg-purple-500 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:border-purple-500"
+                            />
+                        </div>
+
+                        {/* Record */}
+                        {isAdmin && (
+                            <Button size="sm" onClick={toggleRecordMode} className={`text-white min-w-[100px] ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700'}`}>
+                                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+                                {isRecording ? `Rec (M${nextMeasure})` : 'Record'}
+                            </Button>
+                        )}
                     </div>
 
                     {/* Combined Config Panel (toggle from nav bar) */}
