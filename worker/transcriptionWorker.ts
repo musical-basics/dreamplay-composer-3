@@ -1,3 +1,9 @@
+import { config } from 'dotenv'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+config({ path: resolve(__dirname, '..', '.env.local') })
+
 /**
  * BullMQ Transcription Worker
  *
