@@ -602,7 +602,7 @@ export default function AdminEditor() {
         )
     }
 
-    if (!config?.audio_url || !config?.xml_url || !config?.midi_url) {
+    if (!config?.xml_url || !config?.midi_url) {
         return (
             <div className="min-h-screen bg-zinc-950 flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
