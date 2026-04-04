@@ -594,10 +594,66 @@ export default function AdminEditor() {
     }, [isPlaying, isRecording, handlePlayPause, handleTap])
 
 
+    // Fancy loading screen with staged messages
+    const [loadingStage, setLoadingStage] = useState(0)
+    const loadingStages = [
+        'Initializing DreamPlay engine...',
+        'Loading sheet music renderer...',
+        'Parsing MIDI performance data...',
+        'Mapping notes to score...',
+        'Building waterfall visualization...',
+        'Preparing audio sync...',
+        'Almost ready...',
+    ]
+
+    useEffect(() => {
+        if (!loading) return
+        const interval = setInterval(() => {
+            setLoadingStage((prev) => Math.min(prev + 1, loadingStages.length - 1))
+        }, 450)
+        return () => clearInterval(interval)
+    }, [loading, loadingStages.length])
+
     if (loading) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <div className="flex flex-col items-center gap-6 max-w-md text-center">
+                    {/* Animated logo pulse */}
+                    <div className="relative">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center shadow-2xl shadow-purple-500/30 animate-pulse">
+                            <Music className="w-8 h-8 text-white" />
+                        </div>
+                        <div className="absolute inset-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 animate-ping opacity-20" />
+                    </div>
+
+                    {/* Stage text */}
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-semibold text-white">Setting up your project</h2>
+                        <p className="text-sm text-purple-300 animate-pulse font-medium">
+                            {loadingStages[loadingStage]}
+                        </p>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${((loadingStage + 1) / loadingStages.length) * 100}%` }}
+                        />
+                    </div>
+
+                    {/* Stage dots */}
+                    <div className="flex items-center gap-1.5">
+                        {loadingStages.map((_, i) => (
+                            <div
+                                key={i}
+                                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                                    i <= loadingStage ? 'bg-purple-400 scale-100' : 'bg-zinc-700 scale-75'
+                                }`}
+                            />
+                        ))}
+                    </div>
+                </div>
             </div>
         )
     }
