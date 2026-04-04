@@ -10,8 +10,9 @@
  */
 import { Worker } from 'bullmq'
 import IORedis from 'ioredis'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
+import { createR2Client, getR2PublicUrl } from '../lib/r2'
 
 // ---------------------------------------------------------------------------
 // Connections
@@ -20,17 +21,10 @@ const connection = new IORedis(process.env.REDIS_URL!, {
     maxRetriesPerRequest: null,
 })
 
-const s3 = new S3Client({
-    region: 'auto',
-    endpoint: process.env.R2_ENDPOINT!,
-    credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
-})
+const s3 = createR2Client()
 
 const supabase = createClient(
-    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
@@ -78,7 +72,7 @@ const worker = new Worker(
             })
         )
 
-        const finalMidiUrl = `${process.env.R2_PUBLIC_URL}/${midiKey}`
+        const finalMidiUrl = getR2PublicUrl(midiKey)
         console.log(`[transcription] Uploaded MIDI to ${finalMidiUrl}`)
 
         // 4. Update Supabase
@@ -108,11 +102,11 @@ const worker = new Worker(
 // Lifecycle logging
 // ---------------------------------------------------------------------------
 worker.on('completed', (job) => {
-    console.log(`[transcription] ✓ Job ${job.id} completed`)
+    console.log(`[transcription] Job ${job.id} completed`)
 })
 
 worker.on('failed', (job, err) => {
-    console.error(`[transcription] ✗ Job ${job?.id} failed:`, err.message)
+    console.error(`[transcription] Job ${job?.id} failed:`, err.message)
 })
 
 worker.on('ready', () => {

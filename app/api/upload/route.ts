@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { createR2Client, getR2PublicUrl } from '@/lib/r2'
 
-const s3 = new S3Client({
-    region: 'auto',
-    endpoint: process.env.R2_ENDPOINT!,
-    credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
-})
+const s3 = createR2Client()
 
 export async function POST(req: NextRequest) {
     try {
@@ -34,7 +28,7 @@ export async function POST(req: NextRequest) {
             { expiresIn: 600 } // 10 minutes
         )
 
-        const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`
+        const publicUrl = getR2PublicUrl(key)
 
         return NextResponse.json({ presignedUrl, publicUrl, key })
     } catch (error) {

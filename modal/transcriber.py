@@ -5,40 +5,45 @@ Test:   modal run modal/transcriber.py
 URL:    https://<your-workspace>--pianist-v3-transcriber-transcribe.modal.run
 """
 import modal
-from fastapi import Response
-from pydantic import BaseModel
-import tempfile
-import urllib.request
-import os
 
 # ---------------------------------------------------------------------------
-# 1. Container image — installs PyTorch + ByteDance model + ffmpeg
+# 1. Container image — installs PyTorch + ByteDance model + ffmpeg + fastapi
 # ---------------------------------------------------------------------------
 image = (
     modal.Image.debian_slim(python_version="3.10")
     .apt_install("ffmpeg")
-    .pip_install("torch", "piano_transcription_inference", "librosa")
+    .pip_install(
+        "torch",
+        "piano_transcription_inference",
+        "librosa",
+        "fastapi[standard]",
+        "pydantic",
+    )
 )
 
 app = modal.App("pianist-v3-transcriber")
-
-
-class TranscribeRequest(BaseModel):
-    audio_url: str  # Public or presigned R2/S3 URL to the .wav file
 
 
 # ---------------------------------------------------------------------------
 # 2. Serverless GPU function — cold-starts in ~1s on T4, auto-scales to 0
 # ---------------------------------------------------------------------------
 @app.function(image=image, gpu="T4", timeout=600)
-@modal.web_endpoint(method="POST")
-def transcribe(req: TranscribeRequest):
+@modal.fastapi_endpoint(method="POST")
+def transcribe(req: dict):
+    from fastapi import Response
     from piano_transcription_inference import PianoTranscription, load_audio
+    import tempfile
+    import urllib.request
+    import os
+
+    audio_url = req.get("audio_url", "")
+    if not audio_url:
+        return Response(content="audio_url is required", status_code=400)
 
     # Download audio from the provided URL (Cloudflare R2, S3, etc.)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_audio:
         req_obj = urllib.request.Request(
-            req.audio_url, headers={"User-Agent": "Mozilla/5.0"}
+            audio_url, headers={"User-Agent": "Mozilla/5.0"}
         )
         tmp_audio.write(urllib.request.urlopen(req_obj).read())
         audio_path = tmp_audio.name
