@@ -33,6 +33,10 @@ export function UploadWizardV2({
     const [lastUploadStatus, setLastUploadStatus] = useState<string | null>(null)
     const [uploadError, setUploadError] = useState<string | null>(null)
     const [replacing, setReplacing] = useState<string | null>(null)
+
+    // Staged files — held locally until final submit
+    const [stagedFiles, setStagedFiles] = useState<Record<string, File>>({})
+    const [uploadingAll, setUploadingAll] = useState(false)
     const [pipelineLogs, setPipelineLogs] = useState<string[]>([])
     const [realProgress, setRealProgress] = useState<{ percent: number; stage: string } | null>(null)
     const [displayPercent, setDisplayPercent] = useState(0)
@@ -124,9 +128,9 @@ export function UploadWizardV2({
         return () => clearInterval(interval)
     }, [transcriptionJobId, transcribing, addLog])
 
-    const hasAudio = !!config.audio_url
-    const hasXml = !!config.xml_url
-    const hasMidi = !!config.midi_url
+    const hasAudio = !!config.audio_url || !!stagedFiles.audio
+    const hasXml = !!config.xml_url || !!stagedFiles.xml
+    const hasMidi = !!config.midi_url || !!stagedFiles.midi
 
     // ---------- step logic per mode ----------
     const steps: Array<'xml' | 'midi' | 'audio'> =
@@ -175,7 +179,7 @@ export function UploadWizardV2({
         const file = e.target.files?.[0]
         if (!file) return
 
-        // Validate audio files before upload
+        // Validate audio files before staging
         if (type === 'audio') {
             const sizeError = validateAudioFile(file)
             if (sizeError) {
@@ -192,26 +196,58 @@ export function UploadWizardV2({
                     return
                 }
             } catch {
-                // If we can't read duration, allow upload but warn
+                // If we can't read duration, allow staging
             }
         }
 
-        setUploading(type)
+        // Stage the file locally — don't upload yet
+        setStagedFiles((prev) => ({ ...prev, [type]: file }))
+        setReplacing(null)
         setUploadError(null)
+        e.target.value = ''
+    }
+
+    // Upload all staged files, then trigger the final action
+    const handleSubmitAll = async () => {
+        setUploadingAll(true)
+        setUploadError(null)
+        addLog('Uploading files...')
+
         try {
-            if (type === 'audio') await onUploadAudio(file)
-            if (type === 'xml') await onUploadXml(file)
-            if (type === 'midi') await onUploadMidi(file)
-            setLastUploadStatus(type)
-            setReplacing(null)
-            setTimeout(() => setLastUploadStatus(null), 3000)
+            if (stagedFiles.xml) {
+                addLog(`Uploading ${stagedFiles.xml.name}...`)
+                await onUploadXml(stagedFiles.xml)
+                addLog('Sheet music uploaded.')
+            }
+            if (stagedFiles.midi) {
+                addLog(`Uploading ${stagedFiles.midi.name}...`)
+                await onUploadMidi(stagedFiles.midi)
+                addLog('MIDI uploaded.')
+            }
+            if (stagedFiles.audio) {
+                addLog(`Uploading ${stagedFiles.audio.name} (${(stagedFiles.audio.size / 1024 / 1024).toFixed(1)} MB)...`)
+                await onUploadAudio(stagedFiles.audio)
+                addLog('Audio uploaded.')
+            }
+
+            setStagedFiles({})
+            addLog('All files uploaded successfully.')
+
+            // If live-audio mode, trigger transcription after uploads complete
+            if (mode === 'live-audio' && onTranscribe) {
+                // Small delay to let config state update from the uploads
+                await new Promise((r) => setTimeout(r, 500))
+                onTranscribe()
+            } else {
+                // MIDI mode — reload to enter editor
+                window.location.reload()
+            }
         } catch (err) {
-            const msg = err instanceof Error ? err.message : `Upload failed for ${type}`
+            const msg = err instanceof Error ? err.message : 'Upload failed'
             setUploadError(msg)
-            console.error(`Upload failed for ${type}:`, err)
+            addLog(`Upload error: ${msg}`)
         } finally {
-            setUploading(null)
-            e.target.value = ''
+            setUploadingAll(false)
         }
     }
 
@@ -412,7 +448,9 @@ export function UploadWizardV2({
                                             <div className="flex items-center justify-between mb-4">
                                                 <p className="text-xs text-green-500/80 font-medium flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-300">
                                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                                    {cfg.successMsg}
+                                                    {stagedFiles[stepKey]
+                                                        ? `${stagedFiles[stepKey].name} ready to upload`
+                                                        : cfg.successMsg}
                                                 </p>
                                                 <button
                                                     onClick={() => setReplacing(replacing === stepKey ? null : stepKey)}
@@ -482,25 +520,30 @@ export function UploadWizardV2({
                         <h3 className="text-xl font-bold text-white mb-2">All Files Ready!</h3>
                         <p className="text-zinc-400 mb-6">
                             {mode === 'live-audio'
-                                ? "Your sheet music and recording are uploaded. Click below to generate MIDI with AI."
-                                : "You've successfully uploaded all necessary assets. You can now start mapping the score."}
+                                ? "Your files are staged. Click below to upload and generate MIDI with AI."
+                                : "Your files are staged. Click below to upload and enter the editor."}
                         </p>
                         <div className="flex flex-col gap-3">
-                            {mode === 'live-audio' && onTranscribe ? (
-                                <Button
-                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-bold shadow-lg shadow-purple-500/20"
-                                    onClick={onTranscribe}
-                                >
-                                    AI Transcribe Audio to MIDI
-                                </Button>
-                            ) : (
-                                <Button className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-bold shadow-lg shadow-green-500/20" onClick={() => window.location.reload()}>
-                                    Enter Editor <ArrowRight className="w-5 h-5 ml-2" />
-                                </Button>
-                            )}
+                            <Button
+                                className={`w-full py-6 text-lg font-bold shadow-lg ${
+                                    mode === 'live-audio'
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-500/20'
+                                        : 'bg-green-600 hover:bg-green-700 text-white shadow-green-500/20'
+                                }`}
+                                onClick={handleSubmitAll}
+                                disabled={uploadingAll}
+                            >
+                                {uploadingAll ? (
+                                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Uploading...</>
+                                ) : mode === 'live-audio' ? (
+                                    'Upload & AI Transcribe'
+                                ) : (
+                                    <>Upload & Enter Editor <ArrowRight className="w-5 h-5 ml-2" /></>
+                                )}
+                            </Button>
                             <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
                                 <Info className="w-3 h-3" />
-                                <span>{mode === 'live-audio' ? 'Our DreamPlay AI model will generate MIDI from your recording.' : 'Note: Full interface will be unlocked.'}</span>
+                                <span>{mode === 'live-audio' ? 'Files will be uploaded, then our DreamPlay AI model will generate MIDI from your recording.' : 'Files will be uploaded, then the full editor will be unlocked.'}</span>
                             </div>
                         </div>
                     </div>
