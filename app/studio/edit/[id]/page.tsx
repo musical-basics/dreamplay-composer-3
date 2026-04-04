@@ -596,6 +596,7 @@ export default function AdminEditor() {
 
     // Fancy loading screen with staged messages
     const [loadingStage, setLoadingStage] = useState(0)
+    const [minLoadingDone, setMinLoadingDone] = useState(false)
     const loadingStages = [
         'Initializing DreamPlay engine...',
         'Loading sheet music renderer...',
@@ -606,15 +607,23 @@ export default function AdminEditor() {
         'Almost ready...',
     ]
 
+    // Minimum 3s loading screen
     useEffect(() => {
-        if (!loading) return
+        const timer = setTimeout(() => setMinLoadingDone(true), 3000)
+        return () => clearTimeout(timer)
+    }, [])
+
+    const showLoading = loading || !minLoadingDone
+
+    useEffect(() => {
+        if (!showLoading) return
         const interval = setInterval(() => {
             setLoadingStage((prev) => Math.min(prev + 1, loadingStages.length - 1))
         }, 450)
         return () => clearInterval(interval)
-    }, [loading, loadingStages.length])
+    }, [showLoading, loadingStages.length])
 
-    if (loading) {
+    if (showLoading) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-6 max-w-md text-center">
