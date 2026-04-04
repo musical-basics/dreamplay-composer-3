@@ -681,6 +681,16 @@ export default function AdminEditor() {
                             <Button variant="ghost" size="sm" onClick={() => router.push('/studio')} className="text-zinc-400 hover:text-white">
                                 <FolderOpen className="w-3.5 h-3.5 mr-1" /> Open
                             </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowConfig(!showConfig)}
+                                className={`h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${showConfig ? 'text-green-400 bg-green-500/10 shadow-[inset_0_0_10px_rgba(34,197,94,0.1)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                title="Toggle Config Panel"
+                            >
+                                <Settings className="w-3 h-3" />
+                                <span>Config</span>
+                            </Button>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -719,52 +729,6 @@ export default function AdminEditor() {
                                     <span>Falling Keys</span>
                                 </Button>
                             </div>
-
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setShowConfig(!showConfig)}
-                                className={`h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${showConfig ? 'text-green-400 bg-green-500/10 shadow-[inset_0_0_10px_rgba(34,197,94,0.1)]' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                title="Toggle Config Panel"
-                            >
-                                <Settings className="w-3 h-3" />
-                                <span>Config</span>
-                            </Button>
-
-                            {/* Manage Files Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
-                                        <FolderOpen className="w-3.5 h-3.5 mr-1" /> Files
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-300">
-                                    <DropdownMenuLabel>Source Files</DropdownMenuLabel>
-                                    <DropdownMenuSeparator className="bg-zinc-800" />
-                                    <DropdownMenuItem onClick={() => audioInputRef.current?.click()} className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <FileAudio className="w-4 h-4 mr-2 text-purple-400" /> Audio (WAV/MP3)
-                                        </div>
-                                        {config?.audio_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => xmlInputRef.current?.click()} className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <FileMusic className="w-4 h-4 mr-2 text-blue-400" /> Score (XML)
-                                        </div>
-                                        {config?.xml_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => midiInputRef.current?.click()} className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <Music className="w-4 h-4 mr-2 text-amber-400" /> Performance (MIDI)
-                                        </div>
-                                        {config?.midi_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator className="bg-zinc-800" />
-                                    <DropdownMenuItem onClick={() => router.push('/studio')} className="text-zinc-400">
-                                        Back to Dashboard
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
 
                             {isAdmin && (
                                 <>
