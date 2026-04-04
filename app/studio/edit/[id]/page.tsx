@@ -731,6 +731,37 @@ export default function AdminEditor() {
                                 </Button>
                             </div>
 
+                            {/* Files Dropdown — visible to all users */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="border-zinc-700 text-black hover:text-black h-8">
+                                        <FolderOpen className="w-3.5 h-3.5 mr-1" /> Files
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-300">
+                                    <DropdownMenuLabel>Source Files</DropdownMenuLabel>
+                                    <DropdownMenuSeparator className="bg-zinc-800" />
+                                    <DropdownMenuItem onClick={() => audioInputRef.current?.click()} className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <FileAudio className="w-4 h-4 mr-2 text-purple-400" /> Audio (WAV/MP3)
+                                        </div>
+                                        {config?.audio_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => xmlInputRef.current?.click()} className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <FileMusic className="w-4 h-4 mr-2 text-blue-400" /> Score (XML)
+                                        </div>
+                                        {config?.xml_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => midiInputRef.current?.click()} className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <Music className="w-4 h-4 mr-2 text-amber-400" /> Performance (MIDI)
+                                        </div>
+                                        {config?.midi_url && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
                             {isAdmin && (
                                 <>
                                     {/* View Dropdown */}
@@ -873,7 +904,8 @@ export default function AdminEditor() {
                     {/* Combined Config Panel (toggle from nav bar) */}
                     {showConfig && (
                         <div className="px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/40 space-y-4">
-                            {/* Working Files */}
+                            {/* Working Files — admin only */}
+                            {isAdmin && (
                             <div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
@@ -911,6 +943,7 @@ export default function AdminEditor() {
                                     </div>
                                 </div>
                             </div>
+                            )}
 
                             {/* Visual Appearance */}
                             <div>
