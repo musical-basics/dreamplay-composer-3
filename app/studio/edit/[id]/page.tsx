@@ -142,7 +142,7 @@ export default function AdminEditor() {
                 if (data) {
                     setConfig(data)
                     setTitle(data.title)
-                    setReleaseTightness(0)
+                    setReleaseTightness(0.2)
                     if (data.anchors) setAnchors(data.anchors)
                     if (data.beat_anchors) setBeatAnchors(data.beat_anchors)
                     if (data.is_level2) setIsLevel2Mode(data.is_level2)
