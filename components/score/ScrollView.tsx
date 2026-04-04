@@ -894,7 +894,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                     </div>
                 )}
 
-                <div ref={osmdContainerRef} style={{ visibility: isLoaded ? 'visible' : 'hidden', filter: darkMode ? 'brightness(0.9)' : 'none' }} />
+                <div ref={osmdContainerRef} style={{ visibility: isLoaded ? 'visible' : 'hidden', filter: darkMode ? 'brightness(0.9)' : 'none', minWidth: '99999px' }} />
 
                 <div ref={cursorRef} className="absolute pointer-events-none transition-none z-[1000]" style={{ display: 'none', width: '2px', backgroundColor: 'rgba(99,102,241,0.7)' }} />
                 <div ref={curtainRef} className="absolute pointer-events-none z-[999]" style={{ display: 'none', top: 0, bottom: 0 }} />
