@@ -44,14 +44,20 @@ def transcribe(req: dict):
     import urllib.request
     import os
 
+    from urllib.parse import quote, urlparse, urlunparse
+
     audio_url = req.get("audio_url", "")
     if not audio_url:
         return Response(content="audio_url is required", status_code=400)
 
+    # Ensure URL path is properly encoded (spaces etc.)
+    parsed = urlparse(audio_url)
+    safe_url = urlunparse(parsed._replace(path=quote(parsed.path, safe="/")))
+
     # Download audio from the provided URL (Cloudflare R2, S3, etc.)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_audio:
         req_obj = urllib.request.Request(
-            audio_url, headers={"User-Agent": "Mozilla/5.0"}
+            safe_url, headers={"User-Agent": "Mozilla/5.0"}
         )
         tmp_audio.write(urllib.request.urlopen(req_obj).read())
         audio_path = tmp_audio.name

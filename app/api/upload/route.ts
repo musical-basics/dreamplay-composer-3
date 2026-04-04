@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        const key = `audio/${configId}/${Date.now()}-${filename}`
+        const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '-')
+        const key = `audio/${configId}/${Date.now()}-${safeFilename}`
 
         const presignedUrl = await getSignedUrl(
             s3,
