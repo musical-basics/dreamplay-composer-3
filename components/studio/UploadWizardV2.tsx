@@ -32,6 +32,7 @@ export function UploadWizardV2({
     const [uploading, setUploading] = useState<string | null>(null)
     const [lastUploadStatus, setLastUploadStatus] = useState<string | null>(null)
     const [uploadError, setUploadError] = useState<string | null>(null)
+    const [replacing, setReplacing] = useState<string | null>(null)
     const [pipelineLogs, setPipelineLogs] = useState<string[]>([])
     const [realProgress, setRealProgress] = useState<{ percent: number; stage: string } | null>(null)
     const [displayPercent, setDisplayPercent] = useState(0)
@@ -202,6 +203,7 @@ export function UploadWizardV2({
             if (type === 'xml') await onUploadXml(file)
             if (type === 'midi') await onUploadMidi(file)
             setLastUploadStatus(type)
+            setReplacing(null)
             setTimeout(() => setLastUploadStatus(null), 3000)
         } catch (err) {
             const msg = err instanceof Error ? err.message : `Upload failed for ${type}`
@@ -407,13 +409,21 @@ export function UploadWizardV2({
                                         </h3>
                                         <p className="text-sm text-zinc-400 mb-4">{cfg.desc}</p>
                                         {isDone && (
-                                            <p className="text-xs text-green-500/80 font-medium mb-4 flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-300">
-                                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                                {cfg.successMsg}
-                                            </p>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <p className="text-xs text-green-500/80 font-medium flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-300">
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                    {cfg.successMsg}
+                                                </p>
+                                                <button
+                                                    onClick={() => setReplacing(replacing === stepKey ? null : stepKey)}
+                                                    className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-wider font-semibold"
+                                                >
+                                                    {replacing === stepKey ? 'Cancel' : 'Replace'}
+                                                </button>
+                                            </div>
                                         )}
 
-                                        {isActive && (
+                                        {(isActive || replacing === stepKey) && (
                                             <>
                                                 <div className="relative">
                                                     <input
