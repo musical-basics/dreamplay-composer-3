@@ -44,6 +44,21 @@ export async function GET(request: NextRequest) {
             )
         }
 
+        // MXL files are ZIP-compressed MusicXML — must be returned as binary
+        const isMxl = target.toLowerCase().endsWith('.mxl') ||
+            (upstreamResponse.headers.get('content-type') || '').includes('application/vnd.recordare.musicxml')
+
+        if (isMxl) {
+            const buffer = await upstreamResponse.arrayBuffer()
+            return new NextResponse(buffer, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/vnd.recordare.musicxml',
+                    'Cache-Control': 'no-store',
+                },
+            })
+        }
+
         const xmlText = await upstreamResponse.text()
         return new NextResponse(xmlText, {
             status: 200,
