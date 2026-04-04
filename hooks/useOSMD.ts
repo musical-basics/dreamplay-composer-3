@@ -52,7 +52,18 @@ export function useOSMD(
                 renderSingleHorizontalStaffline: true,
             })
 
-            await osmd.load(url)
+            // MXL files (compressed MusicXML) need ArrayBuffer, not URL string.
+            // OSMD's internal URL fetch doesn't handle MXL binary correctly.
+            const isMxl = url.toLowerCase().includes('.mxl')
+            if (isMxl) {
+                // Fetch through proxy to avoid CORS, get binary
+                const proxyUrl = `/api/xml?url=${encodeURIComponent(url)}`
+                const response = await fetch(proxyUrl)
+                const buffer = await response.arrayBuffer()
+                await osmd.load(buffer)
+            } else {
+                await osmd.load(url)
+            }
             osmd.render()
 
             osmdRef.current = osmd
