@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
@@ -42,7 +42,9 @@ import { createClient } from '@supabase/supabase-js'
 export default function AdminEditor() {
     const params = useParams()
     const router = useRouter()
+    const searchParams = useSearchParams()
     const configId = params?.id as string
+    const isAdmin = searchParams.get('admin') === 'true'
 
     const [config, setConfig] = useState<SongConfig | null>(null)
     const [loading, setLoading] = useState(true)
@@ -632,7 +634,7 @@ export default function AdminEditor() {
             <input ref={xmlInputRef} type="file" accept=".xml,.musicxml,.mxl" className="hidden" onChange={handleXmlUpload} />
             <input ref={midiInputRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleMidiUpload} />
 
-            {showAnchorSidebar && (
+            {isAdmin && showAnchorSidebar && (
                 <AnchorSidebar
                     anchors={anchors}
                     beatAnchors={beatAnchors}
@@ -760,9 +762,11 @@ export default function AdminEditor() {
                                 <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-300">
                                     <DropdownMenuLabel>Interface Views</DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-zinc-800" />
-                                    <DropdownMenuCheckboxItem checked={showAnchorSidebar} onCheckedChange={setShowAnchorSidebar}>
-                                        Anchor Sidebar
-                                    </DropdownMenuCheckboxItem>
+                                    {isAdmin && (
+                                        <DropdownMenuCheckboxItem checked={showAnchorSidebar} onCheckedChange={setShowAnchorSidebar}>
+                                            Anchor Sidebar
+                                        </DropdownMenuCheckboxItem>
+                                    )}
                                     <DropdownMenuCheckboxItem checked={showMidiTimeline} onCheckedChange={setShowMidiTimeline}>
                                         MIDI Piano Roll
                                     </DropdownMenuCheckboxItem>
@@ -973,7 +977,7 @@ export default function AdminEditor() {
                                     <ScoreControls
                                         revealMode={revealMode} darkMode={darkMode} highlightNote={highlightNote}
                                         glowEffect={glowEffect} popEffect={popEffect} jumpEffect={jumpEffect}
-                                        isLocked={isLocked} showCursor={showCursor} isAdmin={true}
+                                        isLocked={isLocked} showCursor={showCursor} isAdmin={isAdmin}
                                         onRevealModeChange={setRevealMode} onDarkModeToggle={() => setDarkMode(!darkMode)}
                                         onHighlightToggle={() => setHighlightNote(!highlightNote)} onGlowToggle={() => setGlowEffect(!glowEffect)}
                                         onPopToggle={() => setPopEffect(!popEffect)} onJumpToggle={() => setJumpEffect(!jumpEffect)}
@@ -1021,7 +1025,7 @@ export default function AdminEditor() {
                         audioUrl={config?.audio_url || null}
                         xmlUrl={config?.xml_url || null}
                         parsedMidi={parsedMidi}
-                        isAdmin={true}
+                        isAdmin={isAdmin}
                         onUpdateAnchor={handleSetAnchor}
                         onUpdateBeatAnchor={handleSetBeatAnchor}
                         onScoreLoaded={handleScoreLoaded}
