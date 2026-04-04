@@ -1,0 +1,4 @@
+modal
+torch
+piano_transcription_inference
+librosa
