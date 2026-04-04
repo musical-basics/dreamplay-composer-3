@@ -15,6 +15,7 @@ interface UploadWizardV2Props {
     onUploadXml: (file: File) => Promise<void>
     onUploadMidi: (file: File) => Promise<void>
     onTranscribe?: () => void
+    onRefreshConfig?: () => Promise<void>
     transcribing?: boolean
     transcriptionJobId?: string | null
 }
@@ -25,6 +26,7 @@ export function UploadWizardV2({
     onUploadXml,
     onUploadMidi,
     onTranscribe,
+    onRefreshConfig,
     transcribing = false,
     transcriptionJobId = null,
 }: UploadWizardV2Props) {
@@ -233,10 +235,11 @@ export function UploadWizardV2({
             setStagedFiles({})
             addLog('All files uploaded successfully.')
 
+            // Refresh config so parent has updated URLs
+            if (onRefreshConfig) await onRefreshConfig()
+
             // If live-audio mode, trigger transcription after uploads complete
             if (mode === 'live-audio' && onTranscribe) {
-                // Small delay to let config state update from the uploads
-                await new Promise((r) => setTimeout(r, 500))
                 onTranscribe()
             } else {
                 // MIDI mode — reload to enter editor
