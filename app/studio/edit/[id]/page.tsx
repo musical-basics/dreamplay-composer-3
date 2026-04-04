@@ -607,13 +607,18 @@ export default function AdminEditor() {
         'Almost ready...',
     ]
 
-    // Minimum 3s loading screen
+    // Minimum 3s loading screen — only for configs that have files to load
+    const hasFilesToLoad = !!(config?.xml_url && config?.midi_url)
     useEffect(() => {
+        if (!hasFilesToLoad) {
+            setMinLoadingDone(true)
+            return
+        }
         const timer = setTimeout(() => setMinLoadingDone(true), 3000)
         return () => clearTimeout(timer)
-    }, [])
+    }, [hasFilesToLoad])
 
-    const showLoading = loading || !minLoadingDone
+    const showLoading = loading || (!minLoadingDone && hasFilesToLoad)
 
     useEffect(() => {
         if (!showLoading) return
