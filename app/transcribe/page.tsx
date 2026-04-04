@@ -20,11 +20,15 @@ export default function TranscribePage() {
     const [jobId, setJobId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [logs, setLogs] = useState<string[]>([])
+    const [progress, setProgress] = useState<{ percent: number; stage: string } | null>(null)
     const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+    const logRef = useRef<HTMLDivElement>(null)
 
     const log = useCallback((msg: string) => {
         const ts = new Date().toLocaleTimeString()
         setLogs((prev) => [...prev, `[${ts}] ${msg}`])
+        // auto-scroll
+        setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50)
     }, [])
 
     // -----------------------------------------------------------------------
@@ -75,8 +79,18 @@ export default function TranscribePage() {
                 const res = await fetch(`/api/transcribe/status?jobId=${jobId}`)
                 const data = await res.json()
 
+                // Track progress updates
+                if (data.progress?.percent != null) {
+                    const prev = progress
+                    if (!prev || prev.stage !== data.progress.stage) {
+                        log(`[${data.progress.percent}%] ${data.progress.stage}`)
+                    }
+                    setProgress(data.progress)
+                }
+
                 if (data.state === 'completed') {
-                    log(`Job completed via polling`)
+                    setProgress({ percent: 100, stage: 'Complete!' })
+                    log(`[100%] Transcription complete!`)
                     if (data.returnvalue?.finalMidiUrl) {
                         setMidiUrl(data.returnvalue.finalMidiUrl)
                     }
@@ -220,7 +234,7 @@ export default function TranscribePage() {
                 AI Transcribe
             </button>
 
-            {/* Status */}
+            {/* Status + Progress */}
             <div className="mb-6">
                 <div className="flex items-center gap-3">
                     <span
@@ -235,9 +249,27 @@ export default function TranscribePage() {
                         }`}
                     />
                     <span className="text-sm font-medium">
-                        {stateLabel[state]}
+                        {progress?.stage && state === 'transcribing'
+                            ? `${progress.stage} (${progress.percent}%)`
+                            : stateLabel[state]}
                     </span>
                 </div>
+
+                {/* Progress bar */}
+                {(state === 'transcribing' || state === 'uploading' || state === 'queued') && (
+                    <div className="mt-3 w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="h-full bg-yellow-500 rounded-full transition-all duration-700 ease-out"
+                            style={{ width: `${progress?.percent ?? 5}%` }}
+                        />
+                    </div>
+                )}
+                {state === 'completed' && (
+                    <div className="mt-3 w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
+                        <div className="h-full bg-green-500 rounded-full w-full" />
+                    </div>
+                )}
+
                 {error && (
                     <p className="mt-2 text-sm text-red-400">{error}</p>
                 )}
@@ -265,7 +297,7 @@ export default function TranscribePage() {
                 <h2 className="text-sm font-medium text-neutral-400 mb-2">
                     Pipeline Log
                 </h2>
-                <div className="bg-neutral-950 border border-neutral-800 rounded-lg p-4 h-64 overflow-y-auto font-mono text-xs text-neutral-300">
+                <div ref={logRef} className="bg-neutral-950 border border-neutral-800 rounded-lg p-4 h-64 overflow-y-auto font-mono text-xs text-neutral-300">
                     {logs.length === 0 && (
                         <span className="text-neutral-600">
                             Waiting for activity...

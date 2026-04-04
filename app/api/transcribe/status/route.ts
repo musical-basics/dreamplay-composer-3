@@ -24,9 +24,12 @@ export async function GET(req: NextRequest) {
 
         const state = await job.getState()
 
+        const progress = job.progress as { percent?: number; stage?: string } | undefined
+
         return NextResponse.json({
             jobId: job.id,
             state,
+            progress: progress ?? null,
             data: job.data,
             returnvalue: job.returnvalue,
             failedReason: job.failedReason,

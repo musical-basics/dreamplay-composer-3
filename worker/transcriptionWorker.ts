@@ -46,8 +46,12 @@ const worker = new Worker(
         const { configId, audioUrl } = job.data
         console.log(`[transcription] Job ${job.id} started — configId=${configId}`)
 
+        await job.updateProgress({ percent: 5, stage: 'Connecting to GPU...' })
+
         // 1. Call Modal GPU endpoint
         console.log(`[transcription] Calling Modal GPU at ${MODAL_URL}`)
+        await job.updateProgress({ percent: 10, stage: 'GPU spinning up — downloading audio...' })
+
         const modalResponse = await fetch(MODAL_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -61,12 +65,16 @@ const worker = new Worker(
             )
         }
 
+        await job.updateProgress({ percent: 70, stage: 'MIDI generated — downloading from GPU...' })
+
         // 2. Receive raw MIDI binary from response
         const midiArrayBuffer = await modalResponse.arrayBuffer()
         const midiBuffer = Buffer.from(midiArrayBuffer)
         console.log(
             `[transcription] Received MIDI: ${midiBuffer.length} bytes`
         )
+
+        await job.updateProgress({ percent: 80, stage: 'Uploading MIDI to storage...' })
 
         // 3. Upload MIDI to R2
         const midiKey = `midi/${configId}-ai-transcription-${Date.now()}.mid`
@@ -82,6 +90,8 @@ const worker = new Worker(
         const finalMidiUrl = getR2PublicUrl(midiKey)
         console.log(`[transcription] Uploaded MIDI to ${finalMidiUrl}`)
 
+        await job.updateProgress({ percent: 90, stage: 'Updating database...' })
+
         // 4. Update Supabase (composer.configurations)
         const { error } = await supabase
             .from('configurations')
@@ -93,6 +103,8 @@ const worker = new Worker(
                 `Supabase update failed: ${error.message}`
             )
         }
+
+        await job.updateProgress({ percent: 100, stage: 'Complete!' })
 
         console.log(
             `[transcription] Job ${job.id} completed — midi_url written to DB`
