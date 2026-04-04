@@ -66,6 +66,7 @@ export default function AdminEditor() {
     const [displayTime, setDisplayTime] = useState(0)
     const displayRafRef = useRef<number>(0)
     const [showWorkingFiles, setShowWorkingFiles] = useState(true)
+    const [showConfig, setShowConfig] = useState(false)
     const [showAdvanced, setShowAdvanced] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [lastExportJobId, setLastExportJobId] = useState<string | null>(null)
@@ -717,6 +718,17 @@ export default function AdminEditor() {
                                 </Button>
                             </div>
 
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowConfig(!showConfig)}
+                                className={`h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${showConfig ? 'text-green-400 bg-green-500/10 shadow-[inset_0_0_10px_rgba(34,197,94,0.1)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                title="Toggle Config Panel"
+                            >
+                                <Settings className="w-3 h-3" />
+                                <span>Config</span>
+                            </Button>
+
                             {/* Manage Files Dropdown */}
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -885,93 +897,52 @@ export default function AdminEditor() {
                         </div>
                     </div>
 
-                    <div className="px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/40">
-                        <div className="flex items-center justify-between">
-                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Working Files</div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-zinc-500 hover:text-white h-6 px-2 text-[10px] uppercase tracking-wider font-semibold"
-                                onClick={() => setShowWorkingFiles((prev) => !prev)}
-                            >
-                                {showWorkingFiles ? 'Hide Working Files' : 'Show Working Files'}
-                            </Button>
-                        </div>
-
-                        {showWorkingFiles && (
-                            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
-                                    <div className="flex items-center gap-2 text-[11px] text-blue-300 font-medium">
-                                        <FileMusic className="w-3.5 h-3.5" /> XML Score
+                    {/* Combined Config Panel (toggle from nav bar) */}
+                    {showConfig && (
+                        <div className="px-4 py-3 border-t border-zinc-800/50 bg-zinc-900/40 space-y-4">
+                            {/* Working Files */}
+                            <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Working Files</div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
+                                        <div className="flex items-center gap-2 text-[11px] text-blue-300 font-medium">
+                                            <FileMusic className="w-3.5 h-3.5" /> XML Score
+                                        </div>
+                                        <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.xml_url)}>
+                                            {getFileNameFromUrl(config?.xml_url)}
+                                        </p>
+                                        <Button variant="outline" size="sm" className="mt-2 h-7 border-zinc-700 text-black hover:text-black" onClick={() => xmlInputRef.current?.click()}>
+                                            Upload New XML
+                                        </Button>
                                     </div>
-                                    <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.xml_url)}>
-                                        {getFileNameFromUrl(config?.xml_url)}
-                                    </p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-2 h-7 border-zinc-700 text-black hover:text-black"
-                                        onClick={() => xmlInputRef.current?.click()}
-                                    >
-                                        Upload New XML
-                                    </Button>
-                                </div>
-
-                                <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
-                                    <div className="flex items-center gap-2 text-[11px] text-amber-300 font-medium">
-                                        <Music className="w-3.5 h-3.5" /> MIDI Performance
+                                    <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
+                                        <div className="flex items-center gap-2 text-[11px] text-amber-300 font-medium">
+                                            <Music className="w-3.5 h-3.5" /> MIDI Performance
+                                        </div>
+                                        <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.midi_url)}>
+                                            {getFileNameFromUrl(config?.midi_url)}
+                                        </p>
+                                        <Button variant="outline" size="sm" className="mt-2 h-7 border-zinc-700 text-black hover:text-black" onClick={() => midiInputRef.current?.click()}>
+                                            Upload New MIDI
+                                        </Button>
                                     </div>
-                                    <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.midi_url)}>
-                                        {getFileNameFromUrl(config?.midi_url)}
-                                    </p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-2 h-7 border-zinc-700 text-black hover:text-black"
-                                        onClick={() => midiInputRef.current?.click()}
-                                    >
-                                        Upload New MIDI
-                                    </Button>
-                                </div>
-
-                                <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
-                                    <div className="flex items-center gap-2 text-[11px] text-purple-300 font-medium">
-                                        <FileAudio className="w-3.5 h-3.5" /> Audio Track (WAV/MP3)
+                                    <div className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5">
+                                        <div className="flex items-center gap-2 text-[11px] text-purple-300 font-medium">
+                                            <FileAudio className="w-3.5 h-3.5" /> Audio Track (WAV/MP3)
+                                        </div>
+                                        <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.audio_url)}>
+                                            {getFileNameFromUrl(config?.audio_url)}
+                                        </p>
+                                        <Button variant="outline" size="sm" className="mt-2 h-7 border-zinc-700 text-black hover:text-black" onClick={() => audioInputRef.current?.click()}>
+                                            Upload New Audio
+                                        </Button>
                                     </div>
-                                    <p className="mt-1 text-xs text-zinc-300 truncate" title={getFileNameFromUrl(config?.audio_url)}>
-                                        {getFileNameFromUrl(config?.audio_url)}
-                                    </p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-2 h-7 border-zinc-700 text-black hover:text-black"
-                                        onClick={() => audioInputRef.current?.click()}
-                                    >
-                                        Upload New Audio
-                                    </Button>
                                 </div>
                             </div>
-                        )}
-                    </div>
 
-                    {/* Row 2: Advanced Settings (Collapsible) */}
-                    <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-                        <div className="px-4 py-3 bg-zinc-900/50 border-t border-zinc-800/30">
-                            <div className="flex items-center justify-between mb-2">
-                                <Label className="text-[10px] text-zinc-500 uppercase font-bold">Visual Appearance</Label>
-                                <CollapsibleTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-zinc-500 hover:text-white h-6 px-2 text-[10px] uppercase tracking-wider font-semibold"
-                                    >
-                                        <Settings className={`w-3 h-3 mr-1.5 transition-transform duration-200 ${showAdvanced ? 'rotate-90' : ''}`} />
-                                        {showAdvanced ? 'Hide Advanced Config' : 'Show Advanced Config'}
-                                    </Button>
-                                </CollapsibleTrigger>
-                            </div>
-
-                            <CollapsibleContent>
+                            {/* Visual Appearance */}
+                            <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Visual Appearance</div>
                                 <div className="flex flex-wrap items-end gap-4">
                                 <div className="flex flex-col gap-1.5 min-w-0 flex-[1_1_720px]">
                                     <ScoreControls
@@ -1015,9 +986,9 @@ export default function AdminEditor() {
                                     />
                                 </div>
                                 </div>
-                            </CollapsibleContent>
+                            </div>
                         </div>
-                    </Collapsible>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-hidden">
