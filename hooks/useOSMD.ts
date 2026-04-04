@@ -54,7 +54,23 @@ export function useOSMD(
             })
 
             await osmd.load(url)
+
+            // Force container to be very wide before render so OSMD
+            // lays out everything in a single horizontal system
+            const container = containerRef.current!
+            const originalWidth = container.style.width
+            container.style.width = '999999px'
             osmd.render()
+            // After render, shrink container to actual content width
+            const svgs = container.querySelectorAll('svg')
+            let maxRight = 0
+            svgs.forEach(svg => {
+                const rect = svg.getBoundingClientRect()
+                const containerRect = container.getBoundingClientRect()
+                const right = rect.right - containerRect.left
+                if (right > maxRight) maxRight = right
+            })
+            container.style.width = maxRight > 0 ? `${Math.ceil(maxRight) + 50}px` : originalWidth
 
             osmdRef.current = osmd
 
