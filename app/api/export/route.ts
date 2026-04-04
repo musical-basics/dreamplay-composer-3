@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { getVideoExportQueue } from '@/lib/queue'
 import { wakeRailwayWorker } from '@/lib/railway'
-// Auth removed for Composer-3 testing
+import { auth } from '@clerk/nextjs/server'
 import type { ExportQualityPreset, RenderJobPayload } from '@/lib/types/renderJob'
 
 const EXPORT_PRESETS: ExportQualityPreset[] = ['fast', 'balanced', 'master']
@@ -42,7 +42,12 @@ async function shouldWakeRailwayWorker(): Promise<boolean> {
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = 'test-user-composer-3'
+    const { userId } = await auth()
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { configId, durationSec, qualityPreset } = await req.json()
 
     if (!configId || !durationSec) {
@@ -66,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     const { data: config, error: configError } = await supabase
       .from('configurations')
-      .select('id, user_id, audio_url')
+      .select('id, user_id, audio_url, xml_url, midi_url')
       .eq('id', configId)
       .eq('user_id', userId)
       .single()
@@ -111,6 +116,8 @@ export async function POST(req: NextRequest) {
       {
         exportId: row.id,
         configId,
+        xmlUrl: config.xml_url || undefined,
+        midiUrl: config.midi_url || undefined,
         audioUrl: config.audio_url,
         durationSec: safeDurationSec,
         qualityPreset: safeQualityPreset,
@@ -143,7 +150,12 @@ export async function POST(req: NextRequest) {
  */
 export async function DELETE() {
   try {
-    const userId = 'test-user-composer-3'
+    const { userId } = await auth()
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { data: ownedConfigs, error: configsError } = await supabase
       .from('configurations')
       .select('id')

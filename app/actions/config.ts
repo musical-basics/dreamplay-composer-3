@@ -1,21 +1,31 @@
 'use server'
 
 /**
- * Server Actions for configuration CRUD — auth-free version for Composer-3 testing.
- * Bypasses user_id filtering since this repo has no Clerk auth.
+ * Server Actions for configuration CRUD — with Clerk auth.
  */
 
+import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import {
     getAllConfigs,
     getPublishedConfigs,
+    getConfigById,
+    getPublicConfigById,
     getConfigByIdInternal,
     createConfig,
+    updateConfig,
+    deleteConfig,
+    togglePublish,
+    saveAnchors,
     generateUploadUrl,
 } from '@/lib/services/configService'
 import type { SongConfig, Anchor, BeatAnchor } from '@/lib/types'
 
-const TEST_USER_ID = 'test-user-composer-3'
+async function getAuthUser() {
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+    return { id: userId }
+}
 
 function getSupabase() {
     return createClient(
@@ -26,7 +36,8 @@ function getSupabase() {
 }
 
 export async function fetchAllConfigs(): Promise<SongConfig[]> {
-    return getAllConfigs(TEST_USER_ID)
+    const user = await getAuthUser()
+    return getAllConfigs(user.id)
 }
 
 export async function fetchPublishedConfigs(): Promise<SongConfig[]> {
@@ -34,8 +45,11 @@ export async function fetchPublishedConfigs(): Promise<SongConfig[]> {
 }
 
 export async function fetchConfigById(id: string): Promise<SongConfig | null> {
-    // No user filter — fetch any config by ID
-    return getConfigByIdInternal(id)
+    const { userId } = await auth()
+    if (userId) {
+        return getConfigById(id, userId)
+    }
+    return getPublicConfigById(id)
 }
 
 export async function fetchConfigByIdInternal(id: string): Promise<SongConfig | null> {
@@ -43,36 +57,26 @@ export async function fetchConfigByIdInternal(id: string): Promise<SongConfig | 
 }
 
 export async function createNewConfig(title?: string): Promise<SongConfig> {
-    return createConfig(title, TEST_USER_ID)
+    const user = await getAuthUser()
+    return createConfig(title, user.id)
 }
 
 export async function updateConfigAction(
     id: string,
     updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font'>>
 ): Promise<SongConfig> {
-    // No user_id filter — update any config by ID
-    const sb = getSupabase()
-    const { data, error } = await sb
-        .from('configurations')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
-
-    if (error) throw new Error(`Failed to update config: ${error.message}`)
-    return data as SongConfig
+    const user = await getAuthUser()
+    return updateConfig(id, updates, user.id)
 }
 
 export async function deleteConfigAction(id: string): Promise<void> {
-    const sb = getSupabase()
-    const { error } = await sb.from('configurations').delete().eq('id', id)
-    if (error) throw new Error(`Failed to delete config: ${error.message}`)
+    const user = await getAuthUser()
+    return deleteConfig(id, user.id)
 }
 
 export async function togglePublishAction(id: string, published: boolean): Promise<void> {
-    const sb = getSupabase()
-    const { error } = await sb.from('configurations').update({ is_published: published }).eq('id', id)
-    if (error) throw new Error(`Failed to toggle publish: ${error.message}`)
+    const user = await getAuthUser()
+    return togglePublish(id, published, user.id)
 }
 
 export async function saveAnchorsAction(
@@ -80,11 +84,8 @@ export async function saveAnchorsAction(
     anchors: Anchor[],
     beatAnchors?: BeatAnchor[]
 ): Promise<void> {
-    const sb = getSupabase()
-    const updates: Record<string, unknown> = { anchors }
-    if (beatAnchors !== undefined) updates.beat_anchors = beatAnchors
-    const { error } = await sb.from('configurations').update(updates).eq('id', id)
-    if (error) throw new Error(`Failed to save anchors: ${error.message}`)
+    const user = await getAuthUser()
+    return saveAnchors(id, anchors, beatAnchors, user.id)
 }
 
 export async function generateUploadUrlAction(
@@ -93,34 +94,27 @@ export async function generateUploadUrlAction(
     fileName: string,
     contentType: string
 ): Promise<{ uploadUrl: string; finalFileUrl: string }> {
-    return generateUploadUrl(configId, fileType, fileName, contentType, TEST_USER_ID)
+    const user = await getAuthUser()
+    return generateUploadUrl(configId, fileType, fileName, contentType, user.id)
 }
 
 export async function duplicateConfigAction(
     sourceId: string,
     newTitle: string
 ): Promise<SongConfig> {
-    const source = await getConfigByIdInternal(sourceId)
+    const user = await getAuthUser()
+    const source = await getConfigById(sourceId, user.id)
     if (!source) throw new Error('Source config not found')
 
-    const newConfig = await createConfig(newTitle, TEST_USER_ID)
-    const sb = getSupabase()
-    const { data, error } = await sb
-        .from('configurations')
-        .update({
-            audio_url: source.audio_url,
-            xml_url: source.xml_url,
-            midi_url: source.midi_url,
-            anchors: source.anchors,
-            beat_anchors: source.beat_anchors,
-            subdivision: source.subdivision,
-            is_level2: source.is_level2,
-            ai_anchors: source.ai_anchors,
-        })
-        .eq('id', newConfig.id)
-        .select()
-        .single()
-
-    if (error) throw new Error(`Failed to duplicate config: ${error.message}`)
-    return data as SongConfig
+    const newConfig = await createConfig(newTitle, user.id)
+    return updateConfig(newConfig.id, {
+        audio_url: source.audio_url,
+        xml_url: source.xml_url,
+        midi_url: source.midi_url,
+        anchors: source.anchors,
+        beat_anchors: source.beat_anchors,
+        subdivision: source.subdivision,
+        is_level2: source.is_level2,
+        ai_anchors: source.ai_anchors,
+    }, user.id)
 }
