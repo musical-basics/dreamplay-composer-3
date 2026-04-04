@@ -459,7 +459,7 @@ export function UploadWizardV2({
                                     : `DreamPlay AI is transcribing... (${Math.round(displayPercent)}%)`}
                             </h3>
                             <p className="text-zinc-400 mb-4 text-sm">
-                                Our DreamPlay AI model is analyzing your recording and generating a high-accuracy MIDI transcription.
+                                Our DreamPlay AI model is analyzing your audio recording and mapping it to your sheet music.
                             </p>
                             <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                                 <div
