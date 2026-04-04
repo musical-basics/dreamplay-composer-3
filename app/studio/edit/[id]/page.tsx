@@ -873,6 +873,7 @@ export default function AdminEditor() {
                                 </>
                             )}
 
+                            {isAdmin && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -883,6 +884,7 @@ export default function AdminEditor() {
                                 <Video className="w-3.5 h-3.5 mr-1" />
                                 {isExporting ? 'Starting...' : 'Export Video'}
                             </Button>
+                            )}
 
                             {isAdmin && (
                                 <>
