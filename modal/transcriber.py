@@ -11,13 +11,21 @@ import modal
 # ---------------------------------------------------------------------------
 image = (
     modal.Image.debian_slim(python_version="3.10")
-    .apt_install("ffmpeg")
+    .apt_install("ffmpeg", "libsndfile1", "wget")
     .pip_install(
         "torch",
         "piano_transcription_inference",
-        "librosa",
+        "librosa==0.9.2",
+        "soundfile",
+        "numpy<2",
         "fastapi[standard]",
         "pydantic",
+    )
+    .run_commands(
+        "python3 -c \""
+        "from piano_transcription_inference import PianoTranscription; "
+        "PianoTranscription(device='cpu')"
+        "\""
     )
 )
 

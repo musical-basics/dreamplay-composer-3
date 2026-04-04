@@ -36,3 +36,5 @@ repomix-output.*
 *-repomix-output.*
 *repomix*.xml
 !repomix.config.json
+test-5s.wav
+test-output.mid
