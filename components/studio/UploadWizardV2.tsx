@@ -143,9 +143,57 @@ export function UploadWizardV2({
     const currentStep = firstMissing === -1 ? steps.length + 1 : firstMissing + 1
     const progress = ((currentStep - 1) / steps.length) * 100
 
+    const validateAudioFile = (file: File): string | null => {
+        const MAX_SIZE_MB = 100
+        const MAX_DURATION_MIN = 10
+
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+            return `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum is ${MAX_SIZE_MB} MB.`
+        }
+
+        return null // duration check happens async below
+    }
+
+    const checkAudioDuration = (file: File): Promise<number> => {
+        return new Promise((resolve, reject) => {
+            const audio = new Audio()
+            audio.preload = 'metadata'
+            audio.onloadedmetadata = () => {
+                URL.revokeObjectURL(audio.src)
+                resolve(audio.duration)
+            }
+            audio.onerror = () => {
+                URL.revokeObjectURL(audio.src)
+                reject(new Error('Could not read audio file metadata'))
+            }
+            audio.src = URL.createObjectURL(file)
+        })
+    }
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'audio' | 'xml' | 'midi') => {
         const file = e.target.files?.[0]
         if (!file) return
+
+        // Validate audio files before upload
+        if (type === 'audio') {
+            const sizeError = validateAudioFile(file)
+            if (sizeError) {
+                setUploadError(sizeError)
+                e.target.value = ''
+                return
+            }
+
+            try {
+                const duration = await checkAudioDuration(file)
+                if (duration > 10 * 60) {
+                    setUploadError(`Audio is ${Math.round(duration / 60)} minutes long. Maximum is 10 minutes.`)
+                    e.target.value = ''
+                    return
+                }
+            } catch {
+                // If we can't read duration, allow upload but warn
+            }
+        }
 
         setUploading(type)
         setUploadError(null)
@@ -289,7 +337,7 @@ export function UploadWizardV2({
             title: mode === 'midi-upload' ? 'Master Audio (Optional)' : 'Master Audio (WAV/MP3)',
             desc: mode === 'midi-upload'
                 ? 'Optionally upload audio. If skipped, a default piano sound will be used.'
-                : 'Upload your live recording that will be mapped and synced.',
+                : 'Upload your live recording that will be mapped and synced. 10 minute file limit — we recommend 5 minutes or under for your first upload so you can make sure it works.',
             icon: <FileAudio className="w-6 h-6 text-purple-400" />,
             accept: 'audio/*',
             successLabel: 'Master Audio',
