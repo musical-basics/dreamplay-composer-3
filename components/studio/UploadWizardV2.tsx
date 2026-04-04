@@ -44,9 +44,22 @@ export function UploadWizardV2({
         setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50)
     }, [])
 
+    // Fake progress stages for the pipeline log
+    const fakeStagesRef = useRef<{ pct: number; msg: string }[]>([
+        { pct: 15, msg: 'Allocating GPU resources...' },
+        { pct: 22, msg: 'Loading AI model weights...' },
+        { pct: 30, msg: 'Preprocessing audio waveform...' },
+        { pct: 38, msg: 'Running spectral analysis...' },
+        { pct: 45, msg: 'Detecting note onsets and pitches...' },
+        { pct: 52, msg: 'Analyzing sustain pedal patterns...' },
+        { pct: 58, msg: 'Refining velocity dynamics...' },
+        { pct: 63, msg: 'Assembling MIDI sequence...' },
+    ])
+    const nextFakeIdx = useRef(0)
+
     // Smooth fake progress: ticks from 10% → 65% over ~30s while GPU is working
     useEffect(() => {
-        if (!transcribing) { setDisplayPercent(0); return }
+        if (!transcribing) { setDisplayPercent(0); nextFakeIdx.current = 0; return }
 
         const interval = setInterval(() => {
             setDisplayPercent((prev) => {
@@ -54,13 +67,23 @@ export function UploadWizardV2({
                 // If real progress jumped ahead (e.g. 70%), snap to it
                 if (realPct > prev) return realPct
                 // Otherwise, slowly creep up but cap at 65% (GPU inference zone)
-                if (prev < 65) return prev + 0.8
+                if (prev < 65) {
+                    const next = prev + 0.8
+                    // Emit fake log at milestones
+                    const stages = fakeStagesRef.current
+                    const idx = nextFakeIdx.current
+                    if (idx < stages.length && next >= stages[idx].pct) {
+                        addLog(`[${stages[idx].pct}%] ${stages[idx].msg}`)
+                        nextFakeIdx.current = idx + 1
+                    }
+                    return next
+                }
                 return prev
             })
         }, 500)
 
         return () => clearInterval(interval)
-    }, [transcribing, realProgress])
+    }, [transcribing, realProgress, addLog])
 
     // Snap display to 100 when complete
     useEffect(() => {
@@ -419,7 +442,7 @@ export function UploadWizardV2({
                             )}
                             <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
                                 <Info className="w-3 h-3" />
-                                <span>{mode === 'live-audio' ? 'AI will generate MIDI from your recording using the ByteDance model.' : 'Note: Full interface will be unlocked.'}</span>
+                                <span>{mode === 'live-audio' ? 'Our DreamPlay AI model will generate MIDI from your recording.' : 'Note: Full interface will be unlocked.'}</span>
                             </div>
                         </div>
                     </div>
@@ -433,10 +456,10 @@ export function UploadWizardV2({
                             <h3 className="text-xl font-bold text-white mb-2">
                                 {realProgress?.stage
                                     ? `${realProgress.stage} (${Math.round(displayPercent)}%)`
-                                    : `Transcribing on GPU... (${Math.round(displayPercent)}%)`}
+                                    : `DreamPlay AI is transcribing... (${Math.round(displayPercent)}%)`}
                             </h3>
                             <p className="text-zinc-400 mb-4 text-sm">
-                                The ByteDance AI model is analyzing your recording and generating a high-accuracy MIDI transcription.
+                                Our DreamPlay AI model is analyzing your recording and generating a high-accuracy MIDI transcription.
                             </p>
                             <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                                 <div
