@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { OpenSheetMusicDisplay as OSMD } from 'opensheetmusicdisplay'
+import { debug } from '@/lib/debug'
 
 interface UseOSMDOptions {
     autoResize?: boolean
@@ -39,7 +40,7 @@ export function useOSMD(
             }
 
             const osmd = new OSMD(containerRef.current, {
-                autoResize,
+                autoResize: false,
                 drawTitle,
                 drawSubtitle,
                 drawPartNames: false,
@@ -53,7 +54,28 @@ export function useOSMD(
             })
 
             await osmd.load(url)
+
+            // Ignore system/page breaks embedded in MusicXML
+            osmd.EngravingRules.NewSystemAtXMLNewSystemAttribute = false
+            osmd.EngravingRules.NewPageAtXMLNewPageAttribute = false
+            osmd.EngravingRules.NewSystemAtXMLNewPageAttribute = false
+
+            // Force container to be very wide before render so OSMD
+            // lays out everything in a single horizontal system
+            const container = containerRef.current!
+            const originalWidth = container.style.width
+            container.style.width = '999999px'
             osmd.render()
+            // After render, shrink container to actual content width
+            const svgs = container.querySelectorAll('svg')
+            let maxRight = 0
+            svgs.forEach(svg => {
+                const rect = svg.getBoundingClientRect()
+                const containerRect = container.getBoundingClientRect()
+                const right = rect.right - containerRect.left
+                if (right > maxRight) maxRight = right
+            })
+            container.style.width = maxRight > 0 ? `${Math.ceil(maxRight) + 50}px` : originalWidth
 
             osmdRef.current = osmd
 
@@ -64,7 +86,7 @@ export function useOSMD(
             }
 
             setIsLoaded(true)
-            console.log('[OSMD] Score loaded and rendered')
+            debug.log('[OSMD] Score loaded and rendered')
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Failed to load score'
             setError(msg)

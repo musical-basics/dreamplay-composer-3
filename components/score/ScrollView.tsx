@@ -6,7 +6,6 @@ import { useOSMD } from '@/hooks/useOSMD'
 import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
 import type { Anchor, BeatAnchor, ParsedMidi, XMLEvent } from '@/lib/types'
 import { useAppStore } from '@/lib/store'
-import { debug } from '@/lib/debug'
 
 interface ScrollViewProps {
     xmlUrl: string | null
@@ -497,7 +496,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             newNoteMap.forEach((notes, measureIndex) => {
                 counts.set(measureIndex, notes.length)
             })
-            debug.log(`[ScrollView OSMD] Exported ${xmlEventsList.length} exact XML note events for mapping.`)
+            console.log(`[ScrollView OSMD] Exported ${xmlEventsList.length} exact XML note events for mapping.`)
             onScoreLoaded(measureList.length, counts, xmlEventsList)
         }
 
@@ -657,6 +656,18 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 }
             }
 
+            ;(window as any).__SCORE_TELEMETRY__ = {
+                timeSec: audioTime,
+                measure,
+                beat,
+                progress,
+                cursorX,
+                scrollLeft: scrollContainerRef.current?.scrollLeft ?? 0,
+                containerWidth: containerClientWidth,
+                locked: isLocked,
+                playing: getPlaybackManager().isPlaying,
+            }
+
             if (curtainRef.current) {
                 if (revealMode === 'CURTAIN') {
                     curtainRef.current.style.display = 'block'
@@ -807,7 +818,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             if (stats.lastLogMs === 0) stats.lastLogMs = frameStartMs
             if (frameEndMs - stats.lastLogMs >= 1000) {
                 const avgHeavy = stats.heavyFrames > 0 ? stats.heavyWorkMs / stats.heavyFrames : 0
-                debug.log(
+                console.log(
                     `[OSMD PERF] fps=${stats.frames} heavy=${stats.heavyFrames} skipped=${stats.skippedHeavy} ` +
                     `avgHeavyMs=${avgHeavy.toFixed(2)} measure=${measure}`
                 )
@@ -823,6 +834,23 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
     useEffect(() => {
         if (!isLoaded) return
+
+        // Expose refs for export pipelines (local and cloud)
+        ;(window as any).__SCORE_SCROLL_CONTAINER__ = scrollContainerRef.current
+        ;(window as any).__SCORE_CURSOR__ = cursorRef.current
+
+        // In studio mode, exports drive frames manually via __ADVANCE_FRAME__.
+        // Provide a synchronous score updater to keep cursor movement frame-accurate.
+        if ((window as any).__STUDIO_MODE__) {
+            ;(window as any).__UPDATE_SCORE__ = () => {
+                updateCursorPosition(getPlaybackManager().getVisualTime())
+            }
+
+            return () => {
+                ;(window as any).__UPDATE_SCORE__ = undefined
+            }
+        }
+
         const animate = () => {
             updateCursorPosition(getPlaybackManager().getVisualTime())
             animationFrameRef.current = requestAnimationFrame(animate)
