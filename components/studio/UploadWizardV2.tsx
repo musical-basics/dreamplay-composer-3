@@ -271,7 +271,7 @@ export function UploadWizardV2({
     const stepConfigs: Record<string, { title: string; desc: string; icon: React.ReactNode; accept: string; successLabel: string; successMsg: string }> = {
         xml: {
             title: 'Sheet Music (MusicXML)',
-            desc: 'Upload the XML file exported from Sibelius, Finale, or MuseScore.',
+            desc: 'Upload the MusicXML file exported from MuseScore, Sibelius, or Finale. (In MuseScore: File → Export → MusicXML)',
             icon: <FileMusic className="w-6 h-6 text-blue-400" />,
             accept: '.xml,.musicxml,.mxl',
             successLabel: 'Sheet Music',
@@ -459,7 +459,7 @@ export function UploadWizardV2({
                                     : `DreamPlay AI is transcribing... (${Math.round(displayPercent)}%)`}
                             </h3>
                             <p className="text-zinc-400 mb-4 text-sm">
-                                Our DreamPlay AI model is analyzing your audio recording and mapping it to your sheet music.
+                                Our DreamPlay AI model is analyzing your audio recording, transcribing it to MIDI, and mapping it to your sheet music.
                             </p>
                             <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                                 <div
