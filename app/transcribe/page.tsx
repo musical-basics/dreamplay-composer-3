@@ -12,7 +12,7 @@ type TranscriptionState =
     | 'error'
 
 export default function TranscribePage() {
-    const [configId] = useState(() => crypto.randomUUID())
+    const [configId, setConfigId] = useState<string>('')
     const [state, setState] = useState<TranscriptionState>('idle')
     const [audioFile, setAudioFile] = useState<File | null>(null)
     const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -23,6 +23,12 @@ export default function TranscribePage() {
     const [progress, setProgress] = useState<{ percent: number; stage: string } | null>(null)
     const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
     const logRef = useRef<HTMLDivElement>(null)
+    const lastStageRef = useRef<string | null>(null)
+
+    // Generate configId on client only to avoid hydration mismatch
+    useEffect(() => {
+        setConfigId(crypto.randomUUID())
+    }, [])
 
     const log = useCallback((msg: string) => {
         const ts = new Date().toLocaleTimeString()
@@ -81,8 +87,8 @@ export default function TranscribePage() {
 
                 // Track progress updates
                 if (data.progress?.percent != null) {
-                    const prev = progress
-                    if (!prev || prev.stage !== data.progress.stage) {
+                    if (lastStageRef.current !== data.progress.stage) {
+                        lastStageRef.current = data.progress.stage
                         log(`[${data.progress.percent}%] ${data.progress.stage}`)
                     }
                     setProgress(data.progress)
@@ -107,7 +113,7 @@ export default function TranscribePage() {
             } catch {
                 // polling failure is non-fatal
             }
-        }, 3000)
+        }, 2000)
 
         return () => clearInterval(interval)
     }, [jobId, state, log])
