@@ -1148,7 +1148,8 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     }, [anchors, beatAnchors, osmd, scoreZoomX, duration])
 
     return (
-        <div ref={scrollContainerRef} className={`relative w-full h-full overflow-auto overscroll-none ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+        <div ref={scrollContainerRef} className={`relative w-full h-full overflow-auto overscroll-none ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}
+            onClick={(e) => console.log('[ScrollContainer click]', e.target)}>
             <div ref={containerRef} onClick={handleScoreClick} className="relative min-w-full w-fit min-h-[400px]">
 
                 {!isLoaded && xmlUrl && (
