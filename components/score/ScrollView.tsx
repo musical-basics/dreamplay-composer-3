@@ -919,18 +919,19 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         if (clickedMeasureIndex !== -1) {
             const measureNumber = clickedMeasureIndex + 1
 
+            // Check measure anchor first (beat 1), then fall back to earliest beat anchor
+            const sortedAnchors = [...anchors].sort((a, b) => a.measure - b.measure)
+            const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
+            if (exactAnchor) {
+                getPlaybackManager().seek(exactAnchor.time)
+                return
+            }
+
             const exactBeatAnchor = beatAnchors
                 .filter((b) => b.measure === measureNumber)
                 .sort((a, b) => a.beat - b.beat)[0]
             if (exactBeatAnchor) {
                 getPlaybackManager().seek(exactBeatAnchor.time)
-                return
-            }
-
-            const sortedAnchors = [...anchors].sort((a, b) => a.measure - b.measure)
-            const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
-            if (exactAnchor) {
-                getPlaybackManager().seek(exactAnchor.time)
                 return
             }
 

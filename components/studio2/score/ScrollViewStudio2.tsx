@@ -1103,16 +1103,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 return true
             }
 
-            const exactBeatAnchor = beatAnchors
-                .filter((b) => b.measure === measureNumber)
-                .sort((a, b) => a.beat - b.beat)
-                .find((b) => isValidTimePoint(b.measure, b.time))
-            if (exactBeatAnchor) {
-                console.log(`[ScoreClick] M${measureNumber} → beat anchor t=${exactBeatAnchor.time.toFixed(3)}`)
-                pm.seek(exactBeatAnchor.time)
-                return
-            }
-
+            // Check measure anchor first (beat 1), then fall back to earliest beat anchor
             const sortedAnchors = [...anchors]
                 .filter((a) => isValidTimePoint(a.measure, a.time))
                 .sort((a, b) => a.measure - b.measure)
@@ -1120,6 +1111,16 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             if (exactAnchor) {
                 console.log(`[ScoreClick] M${measureNumber} → measure anchor t=${exactAnchor.time.toFixed(3)}`)
                 pm.seek(exactAnchor.time)
+                return
+            }
+
+            const exactBeatAnchor = beatAnchors
+                .filter((b) => b.measure === measureNumber)
+                .sort((a, b) => a.beat - b.beat)
+                .find((b) => isValidTimePoint(b.measure, b.time))
+            if (exactBeatAnchor) {
+                console.log(`[ScoreClick] M${measureNumber} → beat anchor B${exactBeatAnchor.beat} t=${exactBeatAnchor.time.toFixed(3)}`)
+                pm.seek(exactBeatAnchor.time)
                 return
             }
             console.log(`[ScoreClick] M${measureNumber} → no exact anchor, validAnchors=${sortedAnchors.length}, maxSeekTime=${maxSeekTime.toFixed(1)}`)
