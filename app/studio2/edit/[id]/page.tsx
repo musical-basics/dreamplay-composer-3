@@ -134,33 +134,42 @@ export default function AdminEditor() {
     }
 
     const uploadConfigFile = useCallback(async (file: File, fileType: 'audio' | 'xml' | 'midi') => {
-        const buffer = await file.arrayBuffer()
+        const contentType = file.type || 'application/octet-stream'
 
-        debug.log('[Studio2] Uploading config file via server route', {
+        debug.log('[Studio2] Requesting presigned URL for direct R2 upload', {
             configId,
             fileType,
             fileName: file.name,
             size: file.size,
-            contentType: file.type,
+            contentType,
         })
 
-        const response = await fetch('/api/config-upload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': file.type || 'application/octet-stream',
-                'x-config-id': configId,
-                'x-file-type': fileType,
-                'x-file-name': encodeURIComponent(file.name),
-            },
-            body: buffer,
+        // Step 1: Get a presigned PUT URL from the server (tiny request, no body limit)
+        const params = new URLSearchParams({
+            configId,
+            fileType,
+            fileName: encodeURIComponent(file.name),
+            contentType,
         })
+        const presignRes = await fetch(`/api/config-upload?${params}`)
+        const presignPayload = await presignRes.json().catch(() => null)
+        if (!presignRes.ok) {
+            throw new Error(presignPayload?.error || `Failed to get upload URL: ${presignRes.status}`)
+        }
+        const { presignedUrl, finalFileUrl } = presignPayload as { presignedUrl: string; finalFileUrl: string }
 
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) {
-            throw new Error(payload?.error || `Upload failed: ${response.status}`)
+        // Step 2: PUT the file directly to R2 — bypasses Next.js/Vercel body limits entirely
+        debug.log('[Studio2] Uploading directly to R2 via presigned URL', { finalFileUrl })
+        const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: file,
+        })
+        if (!uploadRes.ok) {
+            throw new Error(`Direct upload to R2 failed: ${uploadRes.status}`)
         }
 
-        return payload as { finalFileUrl: string }
+        return { finalFileUrl }
     }, [configId])
 
 

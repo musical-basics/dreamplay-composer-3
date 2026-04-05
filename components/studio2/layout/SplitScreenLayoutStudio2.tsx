@@ -82,6 +82,8 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
             .then(blob => {
                 blobUrl = URL.createObjectURL(blob)
                 audio.src = blobUrl
+                const sizeMB = (blob.size / 1024 / 1024).toFixed(2)
+                console.log(`[Studio2 Audio] Blob loaded — size: ${sizeMB} MB (${blob.size} bytes), type: ${blob.type}`)
                 debug.log('[Studio2 SplitScreen] Audio loaded as blob', { size: blob.size, type: blob.type, blobUrl })
             })
             .catch(err => {
@@ -90,6 +92,9 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
             })
 
         const handleLoadedMetadata = () => {
+            const mins = Math.floor(audio.duration / 60)
+            const secs = (audio.duration % 60).toFixed(1)
+            console.log(`[Studio2 Audio] Metadata loaded — actual duration: ${mins}:${secs} (${audio.duration.toFixed(3)}s), readyState: ${audio.readyState}`)
             debug.log('[Studio2 SplitScreen] Audio metadata loaded', {
                 sourceUrl: audioUrl,
                 proxiedAudioUrl,
