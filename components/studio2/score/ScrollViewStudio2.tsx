@@ -173,9 +173,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     const lastM10CursorLogRef = useRef(0)
     const hasLoggedAnchorDump = useRef(false)
 
-    // ONE-TIME dump of anchor data to diagnose time scale mismatch
+    // ONE-TIME dump of anchor data to diagnose time scale mismatch (wait for V5 mapper to finish)
     useEffect(() => {
-        if (hasLoggedAnchorDump.current || anchors.length === 0) return
+        if (hasLoggedAnchorDump.current || anchors.length < 5 || beatAnchors.length < 5) return
         hasLoggedAnchorDump.current = true
 
         const sortedAnchors = [...anchors].sort((a, b) => a.time - b.time)
