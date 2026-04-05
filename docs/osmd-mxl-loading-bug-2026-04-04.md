@@ -45,3 +45,69 @@ if (isZip) {
 - `hooks/useOSMD.ts`
 - `hooks/useOSMD-v2.ts`
 - `app/studio/edit/[id]/page.tsx` (loading screen condition fix — separate issue)
+
+---
+
+# Follow-up Bug: Local editors fail to fetch score, MIDI, or audio from remote asset URLs
+
+**Date:** 2026-04-05
+
+## Symptom
+- Live `/studio/edit` showed `Error loading score: Failed to fetch`.
+- Live MIDI loading failed inside `loadMidiFromUrl`, which also broke the waterfall renderer.
+- Pressing spacebar to play could throw `Runtime NotSupportedError: The element has no supported sources.`
+- Studio2 later showed the same fetch failures for score, MIDI, and transport audio.
+
+## Root Cause
+The editor had moved to content-based file loading for OSMD and MIDI parsing, but the browser was still fetching remote R2 asset URLs directly from localhost.
+
+That created three related failure modes:
+
+1. **Score loading:** `fetch(xmlUrl)` in the browser could fail due to cross-origin or signed-URL constraints.
+2. **MIDI loading:** `fetch(midiUrl)` in the browser could fail for the same reason, leaving `parsedMidi` empty and breaking the waterfall.
+3. **Audio playback:** `new Audio(audioUrl)` pointed the media element at the raw remote URL. When the browser could not recognize or access that source cleanly, pressing play or spacebar failed with `The element has no supported sources.`
+
+## Failed Fixes
+
+### Attempt 1: Fix only Studio2 scroll and wrapping logic
+- **Why it failed:** It improved rendering behavior but did not address the actual fetch architecture. The broken parts were upstream asset loading, not cursor/scroll behavior.
+
+### Attempt 2: Fix only live score loading via proxied XML
+- **Why it failed:** `/studio/edit` score loading recovered, but MIDI and audio still used raw remote URLs, so the waterfall and transport remained broken.
+
+### Attempt 3: Fix only live MIDI loading via proxied asset route
+- **Why it failed:** The waterfall recovered, but the transport still instantiated `new Audio(audioUrl)` directly, so spacebar playback could still fail with unsupported-source errors.
+
+## Final Solution
+Move all browser-facing asset access behind internal server routes and keep the browser talking only to same-origin URLs.
+
+### Score
+- Route MusicXML and MXL requests through `/api/xml?url=...`.
+
+### MIDI
+- Route MIDI downloads through `/api/asset?url=...` before parsing with `parseMidiFile()`.
+
+### Audio
+- Build the transport audio element from `/api/asset?url=...` instead of the raw remote asset URL.
+- Infer browser-friendly MIME types in the proxy when upstream responses return weak or generic content types.
+
+### Diagnostics
+- Added explicit audio metadata and media-error logging so future failures reveal the actual source URL, proxy URL, and browser media error code.
+
+## Why it worked
+This fixes the architecture instead of layering more browser-side exceptions on top of remote asset URLs.
+
+- The browser now only requests same-origin `/api/...` routes.
+- The server performs the remote fetch and returns the asset with a stable response shape.
+- OSMD, MIDI parsing, waterfall initialization, and the audio transport all consume the same-origin proxied data.
+- Audio playback becomes reliable because the proxied response includes a recognizable content type instead of relying on whatever upstream headers happen to be present.
+
+## Files Changed
+- `hooks/useOSMD.ts`
+- `app/api/xml/route.ts`
+- `app/api/asset/route.ts`
+- `app/studio/edit/[id]/page.tsx`
+- `components/layout/SplitScreenLayout.tsx`
+- `hooks/studio2/useOSMDStudio2.ts`
+- `app/studio2/edit/[id]/page.tsx`
+- `components/studio2/layout/SplitScreenLayoutStudio2.tsx`
