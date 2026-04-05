@@ -168,6 +168,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         })
     }, [scoreZoomX])
 
+    // Throttle M10 debug logs to once per 500ms
+    const lastM10LogRef = useRef(0)
+
     const findCurrentPosition = useCallback((time: number) => {
         // Helper: compute average measure duration from sorted anchors for extrapolation
         const estimateMeasureDuration = (sorted: { measure: number; time: number }[]): number => {
@@ -200,6 +203,21 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 currentM = currentM + measuresElapsed
                 progress = Math.max(0, Math.min(1, (elapsed - measuresElapsed * avgMeasureDur) / avgMeasureDur))
             }
+
+            // M10 DEBUG: log when near measure 10
+            if (currentM >= 9 && currentM <= 11) {
+                const now = performance.now()
+                if (now - lastM10LogRef.current > 500) {
+                    lastM10LogRef.current = now
+                    console.log('[M10 DEBUG findPos NO-BEAT-ANCHORS]', {
+                        time, currentM, startT, endT, progress,
+                        totalAnchors: sorted.length,
+                        lastAnchor: sorted[sorted.length - 1],
+                        anchorsNearM10: sorted.filter(a => a.measure >= 9 && a.measure <= 11),
+                    })
+                }
+            }
+
             return { measure: currentM, beat: 1, progress, isBeatInterpolation: false }
         }
 
@@ -234,6 +252,23 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             progress = Math.max(0, Math.min(1, (elapsed - measuresElapsed * avgMeasureDur) / avgMeasureDur))
         }
         if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: true }
+
+        // M10 DEBUG: log when near measure 10 (with beat anchors path)
+        if (measure >= 9 && measure <= 11) {
+            const now = performance.now()
+            if (now - lastM10LogRef.current > 500) {
+                lastM10LogRef.current = now
+                console.log('[M10 DEBUG findPos WITH-BEAT-ANCHORS]', {
+                    time, measure, beat, progress,
+                    currentP, nextP,
+                    totalPoints: allPoints.length,
+                    lastPoint: allPoints[allPoints.length - 1],
+                    pointsNearM10: allPoints.filter(p => p.measure >= 9 && p.measure <= 11),
+                    hasBeatAnchors: beatAnchors.length,
+                    hasAnchors: anchors.length,
+                })
+            }
+        }
 
         return {
             measure, beat,
@@ -613,6 +648,32 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const measureList = (instance as any).GraphicSheet.MeasureList
             if (!measureList || measureList.length === 0) return
+
+            // M10 DEBUG: log cursor update state
+            if (measure >= 9 && measure <= 11) {
+                const now = performance.now()
+                if (now - lastM10LogRef.current > 500) {
+                    lastM10LogRef.current = now
+                    const pm = getPlaybackManager()
+                    console.log('[M10 DEBUG updateCursor]', {
+                        audioTime,
+                        measure, beat, progress, isBeatInterpolation,
+                        currentMeasureIndex,
+                        measureListLength: measureList.length,
+                        wouldClamp: currentMeasureIndex >= measureList.length,
+                        pmIsPlaying: pm.isPlaying,
+                        pmDuration: pm.duration,
+                        pmTime: pm.getTime(),
+                        audioElementTime: (pm as any)._audioElement?.currentTime,
+                        audioElementPaused: (pm as any)._audioElement?.paused,
+                        audioElementDuration: (pm as any)._audioElement?.duration,
+                        audioElementReadyState: (pm as any)._audioElement?.readyState,
+                        audioElementNetworkState: (pm as any)._audioElement?.networkState,
+                        audioElementError: (pm as any)._audioElement?.error,
+                    })
+                }
+            }
+
             // Clamp to last measure if extrapolated beyond score
             if (currentMeasureIndex >= measureList.length) {
                 currentMeasureIndex = measureList.length - 1
