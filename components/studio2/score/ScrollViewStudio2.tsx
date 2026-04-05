@@ -130,6 +130,8 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     const activeNotesRef = useRef<Set<NoteData>>(new Set())
     const effectsHashRef = useRef<string>('')
     const lastHeavyUpdateMsRef = useRef<number>(0)
+    const lastManualScrollTimeRef = useRef<number>(0)
+    const lastAutoScrollPosRef = useRef<number>(0)
     const perfStatsRef = useRef({
         lastLogMs: 0,
         frames: 0,
@@ -645,11 +647,17 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 const container = scrollContainerRef.current
                 const targetScrollLeft = cursorX - (containerClientWidth * cursorPosition)
                 const pm = getPlaybackManager()
+                const timeSinceManualScroll = performance.now() - lastManualScrollTimeRef.current
+                const userIsManuallyScrolling = timeSinceManualScroll < 2000
+                const userHasScrolledAway = Math.abs(containerScrollLeft - targetScrollLeft) > 100
 
                 if (isLocked && pm.isPlaying) {
-                    if (Math.abs(containerScrollLeft - targetScrollLeft) < 250) container.scrollLeft = targetScrollLeft
-                    if (currentMeasureIndex !== lastMeasureIndexRef.current && Math.abs(containerScrollLeft - targetScrollLeft) > 50) {
-                        container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                    // Only auto-scroll if user hasn't manually scrolled recently, or if they've scrolled back near playback position
+                    if (!userIsManuallyScrolling || !userHasScrolledAway) {
+                        if (Math.abs(containerScrollLeft - targetScrollLeft) < 250) container.scrollLeft = targetScrollLeft
+                        if (currentMeasureIndex !== lastMeasureIndexRef.current && Math.abs(containerScrollLeft - targetScrollLeft) > 50) {
+                            container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                        }
                     }
                 } else if (currentMeasureIndex !== lastMeasureIndexRef.current) {
                     container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
@@ -858,6 +866,19 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         animationFrameRef.current = requestAnimationFrame(animate)
         return () => cancelAnimationFrame(animationFrameRef.current)
     }, [isLoaded, updateCursorPosition])
+
+    useEffect(() => {
+        const handleManualScroll = () => {
+            lastManualScrollTimeRef.current = performance.now()
+        }
+        
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.addEventListener('scroll', handleManualScroll)
+            return () => {
+                scrollContainerRef.current?.removeEventListener('scroll', handleManualScroll)
+            }
+        }
+    }, [])
 
     const handleScoreClick = useCallback((event: React.MouseEvent) => {
         const osmdInstance = osmd.current
