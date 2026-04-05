@@ -447,7 +447,22 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                                 gve.notes.forEach((n: any) => {
                                     if (!n.sourceNote || !n.sourceNote.Pitch) return;
                                     if (isGraceLikeSourceNote(n.sourceNote)) return;
-                                    const pitch = n.sourceNote.Pitch;
+
+                                    // Skip tie-continuation notes — they don't produce new MIDI note-on events.
+                                    // A tied note's pitch was already sounding from the previous measure.
+                                    // Including them creates phantom XML events that send the V5 mapper
+                                    // searching for pitches it will never find at that timestamp, leading
+                                    // to false matches further ahead (the Sunflowers M10 bug).
+                                    try {
+                                        const noteTie = n.sourceNote.NoteTie;
+                                        if (noteTie) {
+                                            const tieNotes = noteTie.Notes;
+                                            const isTieContinuation = Array.isArray(tieNotes)
+                                                ? tieNotes.length > 0 && tieNotes[0] !== n.sourceNote
+                                                : noteTie.StartNote && noteTie.StartNote !== n.sourceNote;
+                                            if (isTieContinuation) return;
+                                        }
+                                    } catch { /* ignore — guard against OSMD model differences */ }
 
                                     const midiPitch = getSourceNoteMidiPitch(n.sourceNote) ?? 60
 

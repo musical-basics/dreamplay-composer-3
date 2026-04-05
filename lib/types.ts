@@ -96,6 +96,12 @@ export interface V5MapperState {
      * in the correct time window. Resets to undefined when currentEventIndex advances.
      */
     straySkipCursor?: number
+    /**
+     * Time of the last CONFIRMED pitch match (never updated by dead-reckon).
+     * Used as the minTime floor in fresh scans so that accumulated dead-reckon drift
+     * doesn't exclude real notes that occur before the drifted lastAnchorTime.
+     */
+    lastRealMatchTime?: number
 }
 
 /** A full song configuration (stored in DB) */
