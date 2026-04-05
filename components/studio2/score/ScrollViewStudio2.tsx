@@ -1103,27 +1103,40 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 return true
             }
 
-            // Check measure anchor first (beat 1), then fall back to earliest beat anchor
-            const sortedAnchors = [...anchors]
-                .filter((a) => isValidTimePoint(a.measure, a.time))
-                .sort((a, b) => a.measure - b.measure)
-            const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
-            if (exactAnchor) {
-                console.log(`[ScoreClick] M${measureNumber} → measure anchor t=${exactAnchor.time.toFixed(3)}`)
-                pm.seek(exactAnchor.time)
+            // Combine measure anchor (beat 1) + beat anchors, find closest to click X position
+            const allForMeasure: { beat: number; time: number }[] = []
+            const measureAnchor = anchors.find((a) => a.measure === measureNumber)
+            if (measureAnchor && isValidTimePoint(measureNumber, measureAnchor.time)) {
+                allForMeasure.push({ beat: 1, time: measureAnchor.time })
+            }
+            beatAnchors
+                .filter((b) => b.measure === measureNumber && isValidTimePoint(b.measure, b.time))
+                .forEach((b) => allForMeasure.push({ beat: b.beat, time: b.time }))
+            allForMeasure.sort((a, b) => a.beat - b.beat)
+
+            if (allForMeasure.length > 0) {
+                // Use beat X positions to find the closest anchor to the click
+                const beatXMap = beatXMapRef.current.get(measureNumber)
+                if (beatXMap && allForMeasure.length > 1) {
+                    let closestAnchor = allForMeasure[0]
+                    let closestDist = Infinity
+                    allForMeasure.forEach((a) => {
+                        const beatX = beatXMap.get(a.beat)
+                        if (beatX !== undefined) {
+                            const dist = Math.abs(clickX - beatX)
+                            if (dist < closestDist) { closestDist = dist; closestAnchor = a }
+                        }
+                    })
+                    pm.seek(closestAnchor.time)
+                } else {
+                    pm.seek(allForMeasure[0].time)
+                }
                 return
             }
 
-            const exactBeatAnchor = beatAnchors
-                .filter((b) => b.measure === measureNumber)
-                .sort((a, b) => a.beat - b.beat)
-                .find((b) => isValidTimePoint(b.measure, b.time))
-            if (exactBeatAnchor) {
-                console.log(`[ScoreClick] M${measureNumber} → beat anchor B${exactBeatAnchor.beat} t=${exactBeatAnchor.time.toFixed(3)}`)
-                pm.seek(exactBeatAnchor.time)
-                return
-            }
-            console.log(`[ScoreClick] M${measureNumber} → no exact anchor, validAnchors=${sortedAnchors.length}, maxSeekTime=${maxSeekTime.toFixed(1)}`)
+            const sortedAnchors = [...anchors]
+                .filter((a) => isValidTimePoint(a.measure, a.time))
+                .sort((a, b) => a.measure - b.measure)
 
             const lowerAnchor = [...sortedAnchors].reverse().find((a) => a.measure < measureNumber)
             const upperAnchor = sortedAnchors.find((a) => a.measure > measureNumber)
