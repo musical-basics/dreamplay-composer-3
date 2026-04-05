@@ -934,13 +934,42 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
         if (clickedMeasureIndex !== -1) {
             const measureNumber = clickedMeasureIndex + 1
+
+            const exactBeatAnchor = beatAnchors
+                .filter((b) => b.measure === measureNumber)
+                .sort((a, b) => a.beat - b.beat)[0]
+            if (exactBeatAnchor) {
+                getPlaybackManager().seek(exactBeatAnchor.time)
+                return
+            }
+
             const sortedAnchors = [...anchors].sort((a, b) => a.measure - b.measure)
-            const targetAnchor = sortedAnchors.reverse().find(a => a.measure <= measureNumber)
-            if (targetAnchor) {
-                getPlaybackManager().seek(targetAnchor.time)
+            const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
+            if (exactAnchor) {
+                getPlaybackManager().seek(exactAnchor.time)
+                return
+            }
+
+            const lowerAnchor = [...sortedAnchors].reverse().find((a) => a.measure < measureNumber)
+            const upperAnchor = sortedAnchors.find((a) => a.measure > measureNumber)
+
+            if (lowerAnchor && upperAnchor && upperAnchor.measure > lowerAnchor.measure) {
+                const ratio = (measureNumber - lowerAnchor.measure) / (upperAnchor.measure - lowerAnchor.measure)
+                const interpolatedTime = lowerAnchor.time + ((upperAnchor.time - lowerAnchor.time) * ratio)
+                getPlaybackManager().seek(interpolatedTime)
+                return
+            }
+
+            if (lowerAnchor) {
+                getPlaybackManager().seek(lowerAnchor.time)
+                return
+            }
+
+            if (upperAnchor) {
+                getPlaybackManager().seek(upperAnchor.time)
             }
         }
-    }, [anchors, osmd, scoreZoomX])
+    }, [anchors, beatAnchors, osmd, scoreZoomX])
 
     return (
         <div ref={scrollContainerRef} className={`relative w-full h-full overflow-auto overscroll-none ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
