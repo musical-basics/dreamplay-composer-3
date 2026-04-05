@@ -171,6 +171,24 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     // Throttle M10 debug logs to once per 500ms (separate refs so both fire)
     const lastM10LogRef = useRef(0)
     const lastM10CursorLogRef = useRef(0)
+    const hasLoggedAnchorDump = useRef(false)
+
+    // ONE-TIME dump of anchor data to diagnose time scale mismatch
+    useEffect(() => {
+        if (hasLoggedAnchorDump.current || anchors.length === 0) return
+        hasLoggedAnchorDump.current = true
+
+        const sortedAnchors = [...anchors].sort((a, b) => a.time - b.time)
+        const m9Anchors = sortedAnchors.filter(a => a.measure >= 8 && a.measure <= 12)
+        const m9BeatAnchors = beatAnchors.filter(b => b.measure >= 8 && b.measure <= 12).sort((a, b) => a.time - b.time)
+
+        console.log('[ANCHOR DUMP] Measure anchors (first 5):', sortedAnchors.slice(0, 5).map(a => `M${a.measure} t=${a.time.toFixed(3)}`).join(' | '))
+        console.log('[ANCHOR DUMP] Measure anchors (M8-M12):', m9Anchors.map(a => `M${a.measure} t=${a.time.toFixed(3)}`).join(' | '))
+        console.log('[ANCHOR DUMP] Measure anchors (last 3):', sortedAnchors.slice(-3).map(a => `M${a.measure} t=${a.time.toFixed(3)}`).join(' | '))
+        console.log('[ANCHOR DUMP] Beat anchors count:', beatAnchors.length, '| first 10:', beatAnchors.slice(0, 10).map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
+        console.log('[ANCHOR DUMP] Beat anchors M8-M12:', m9BeatAnchors.map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
+        console.log('[ANCHOR DUMP] Beat anchors (last 5):', [...beatAnchors].sort((a, b) => a.time - b.time).slice(-5).map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
+    }, [anchors, beatAnchors])
 
     const findCurrentPosition = useCallback((time: number) => {
         // Helper: compute average measure duration from sorted anchors for extrapolation
