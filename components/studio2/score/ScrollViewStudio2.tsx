@@ -131,7 +131,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     const effectsHashRef = useRef<string>('')
     const lastHeavyUpdateMsRef = useRef<number>(0)
     const lastManualScrollTimeRef = useRef<number>(0)
-    const lastAutoScrollPosRef = useRef<number>(0)
+    const manualScrollIntentUntilRef = useRef<number>(0)
     const perfStatsRef = useRef({
         lastLogMs: 0,
         frames: 0,
@@ -648,7 +648,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 const targetScrollLeft = cursorX - (containerClientWidth * cursorPosition)
                 const pm = getPlaybackManager()
                 const timeSinceManualScroll = performance.now() - lastManualScrollTimeRef.current
-                const userIsManuallyScrolling = timeSinceManualScroll < 2000
+                const userIsManuallyScrolling = timeSinceManualScroll < 1200
                 const userHasScrolledAway = Math.abs(containerScrollLeft - targetScrollLeft) > 100
 
                 if (isLocked && pm.isPlaying) {
@@ -868,15 +868,33 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     }, [isLoaded, updateCursorPosition])
 
     useEffect(() => {
-        const handleManualScroll = () => {
-            lastManualScrollTimeRef.current = performance.now()
+        const container = scrollContainerRef.current
+        if (!container) return
+
+        const markManualScrollIntent = () => {
+            manualScrollIntentUntilRef.current = performance.now() + 1200
         }
-        
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.addEventListener('scroll', handleManualScroll)
-            return () => {
-                scrollContainerRef.current?.removeEventListener('scroll', handleManualScroll)
+
+        const handleManualScroll = () => {
+            const now = performance.now()
+            if (now <= manualScrollIntentUntilRef.current) {
+                lastManualScrollTimeRef.current = now
+                manualScrollIntentUntilRef.current = now + 1200
             }
+        }
+
+        container.addEventListener('wheel', markManualScrollIntent, { passive: true })
+        container.addEventListener('touchstart', markManualScrollIntent, { passive: true })
+        container.addEventListener('pointerdown', markManualScrollIntent)
+        container.addEventListener('keydown', markManualScrollIntent)
+        container.addEventListener('scroll', handleManualScroll, { passive: true })
+
+        return () => {
+            container.removeEventListener('wheel', markManualScrollIntent)
+            container.removeEventListener('touchstart', markManualScrollIntent)
+            container.removeEventListener('pointerdown', markManualScrollIntent)
+            container.removeEventListener('keydown', markManualScrollIntent)
+            container.removeEventListener('scroll', handleManualScroll)
         }
     }, [])
 
