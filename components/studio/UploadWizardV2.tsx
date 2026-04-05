@@ -394,7 +394,7 @@ export function UploadWizardV2({
         audio: {
             title: mode === 'midi-upload' ? 'Master Audio (Optional)' : 'Master Audio (WAV/MP3)',
             desc: mode === 'midi-upload'
-                ? 'Optionally upload audio. If skipped, a default piano sound will be used.'
+                ? 'Optionally upload audio. If skipped, a default piano sound will be used. Please ensure your master audio matches the MIDI by the millisecond, otherwise it will not be synced.'
                 : 'Upload your live recording that will be mapped and synced. 10 minute file limit — we recommend 5 minutes or under for your first upload so you can make sure it works.',
             icon: <FileAudio className="w-6 h-6 text-purple-400" />,
             accept: 'audio/*',
