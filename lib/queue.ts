@@ -22,3 +22,14 @@ export function getTranscriptionQueue(): Queue {
     }
     return transcriptionQueue
 }
+
+let videoExportQueue: Queue | null = null
+
+export function getVideoExportQueue(): Queue {
+    if (!videoExportQueue) {
+        videoExportQueue = new Queue('video-export', {
+            connection: getRedisConnection(),
+        })
+    }
+    return videoExportQueue
+}
