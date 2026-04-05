@@ -272,15 +272,16 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             const now = performance.now()
             if (now - lastM10LogRef.current > 500) {
                 lastM10LogRef.current = now
-                console.log('[M10 DEBUG findPos WITH-BEAT-ANCHORS]', {
-                    time, measure, beat, progress,
-                    currentP, nextP,
-                    totalPoints: allPoints.length,
-                    lastPoint: allPoints[allPoints.length - 1],
-                    pointsNearM10: allPoints.filter(p => p.measure >= 9 && p.measure <= 11),
-                    hasBeatAnchors: beatAnchors.length,
-                    hasAnchors: anchors.length,
-                })
+                // Find points near M9-M10 for debugging
+                const m9m10points = allPoints.filter(p => p.measure >= 9 && p.measure <= 11)
+                const currentPIdx = allPoints.indexOf(currentP)
+                console.log(`[M10 DEBUG findPos] time=${time.toFixed(3)} → M${measure} B${beat} prog=${progress.toFixed(3)} | ` +
+                    `currentP: M${currentP?.measure} B${currentP?.beat} t=${currentP?.time?.toFixed(3)} (idx ${currentPIdx}/${allPoints.length}) | ` +
+                    `nextP: ${nextP ? `M${nextP.measure} B${nextP.beat} t=${nextP.time.toFixed(3)}` : 'NULL'} | ` +
+                    `anchors=${anchors.length} beatAnchors=${beatAnchors.length} totalPts=${allPoints.length} | ` +
+                    `M9-M10 points=${m9m10points.length} | ` +
+                    `lastPt: M${allPoints[allPoints.length-1]?.measure} B${allPoints[allPoints.length-1]?.beat} t=${allPoints[allPoints.length-1]?.time?.toFixed(3)}`
+                )
             }
         }
 
