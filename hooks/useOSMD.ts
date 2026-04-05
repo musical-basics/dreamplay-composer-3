@@ -51,9 +51,10 @@ export function useOSMD(
                 renderSingleHorizontalStaffline: true,
             })
 
-            // Fetch the file ourselves to detect format by content,
-            // since MXL files may be stored with a .xml extension.
-            const response = await fetch(url)
+            // Fetch through the internal proxy so localhost Studio can load
+            // remote XML/MXL assets without browser-side CORS failures.
+            const proxiedUrl = `/api/xml?url=${encodeURIComponent(url)}`
+            const response = await fetch(proxiedUrl, { cache: 'no-store' })
             if (!response.ok) throw new Error(`Failed to fetch score: ${response.status}`)
             const buffer = await response.arrayBuffer()
             const bytes = new Uint8Array(buffer)
