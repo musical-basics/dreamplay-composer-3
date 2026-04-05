@@ -7,7 +7,14 @@ import { debug } from '@/lib/debug'
 export async function getAudioOffset(audioUrl: string | null): Promise<number> {
     if (!audioUrl) return 0;
     try {
-        debug.log('[AudioHelpers] Fetching audio to detect first peak offset...')
+        const proxiedAudioUrl = audioUrl.startsWith('/api/asset?url=')
+            ? audioUrl
+            : `/api/asset?url=${encodeURIComponent(audioUrl)}`
+
+        debug.log('[AudioHelpers] Fetching audio to detect first peak offset...', {
+            sourceUrl: audioUrl,
+            proxiedAudioUrl,
+        })
         
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
@@ -17,10 +24,19 @@ export async function getAudioOffset(audioUrl: string | null): Promise<number> {
         }
 
         const ac = new AudioContextClass();
-        const response = await fetch(audioUrl);
+        const response = await fetch(proxiedAudioUrl, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`Audio fetch failed: ${response.status} ${response.statusText}`)
+        }
         const buf = await response.arrayBuffer();
         const decoded = await ac.decodeAudioData(buf);
         const data = decoded.getChannelData(0);
+
+        debug.log('[AudioHelpers] Audio decoded for peak detection', {
+            sampleRate: decoded.sampleRate,
+            frameCount: data.length,
+            durationSec: decoded.duration,
+        })
 
         let maxAmp = 0;
         // Sample every 100th frame for speed to find general max amplitude
@@ -42,6 +58,7 @@ export async function getAudioOffset(audioUrl: string | null): Promise<number> {
             }
         }
         
+        debug.log('[AudioHelpers] No threshold crossing found, using 0s offset')
         await ac.close();
     } catch (err) {
         console.error('[AudioHelpers] Audio offset detection failed:', err);
