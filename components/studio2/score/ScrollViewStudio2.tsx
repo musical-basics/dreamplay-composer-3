@@ -130,6 +130,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     const activeNotesRef = useRef<Set<NoteData>>(new Set())
     const effectsHashRef = useRef<string>('')
     const lastHeavyUpdateMsRef = useRef<number>(0)
+    const lastSyncLogMsRef = useRef<number>(0)
     const perfStatsRef = useRef({
         lastLogMs: 0,
         frames: 0,
@@ -645,14 +646,36 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 const container = scrollContainerRef.current
                 const targetScrollLeft = cursorX - (containerClientWidth * cursorPosition)
                 const pm = getPlaybackManager()
+                const maxScrollLeft = Math.max(0, container.scrollWidth - containerClientWidth)
+                const clampedTargetScrollLeft = Math.max(0, Math.min(maxScrollLeft, targetScrollLeft))
 
                 if (isLocked && pm.isPlaying) {
-                    if (Math.abs(containerScrollLeft - targetScrollLeft) < 250) container.scrollLeft = targetScrollLeft
-                    if (currentMeasureIndex !== lastMeasureIndexRef.current && Math.abs(containerScrollLeft - targetScrollLeft) > 50) {
-                        container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                    const delta = clampedTargetScrollLeft - container.scrollLeft
+                    if (Math.abs(delta) < 250) {
+                        container.scrollLeft = clampedTargetScrollLeft
+                    } else {
+                        container.scrollLeft += (delta * 0.2)
                     }
                 } else if (currentMeasureIndex !== lastMeasureIndexRef.current) {
-                    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                    container.scrollTo({ left: clampedTargetScrollLeft, behavior: 'smooth' })
+                }
+
+                const now = performance.now()
+                if (now - lastSyncLogMsRef.current > 500) {
+                    console.log('[Studio2 Sync] frame', {
+                        audioTime,
+                        measure,
+                        beat,
+                        progress,
+                        cursorX,
+                        currentScrollLeft: container.scrollLeft,
+                        targetScrollLeft,
+                        clampedTargetScrollLeft,
+                        containerWidth: containerClientWidth,
+                        isLocked,
+                        isPlaying: pm.isPlaying,
+                    })
+                    lastSyncLogMsRef.current = now
                 }
             }
 
