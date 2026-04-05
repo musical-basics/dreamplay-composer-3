@@ -134,6 +134,23 @@ export function UploadWizardV2({
     const hasXml = !!config.xml_url || !!stagedFiles.xml
     const hasMidi = !!config.midi_url || !!stagedFiles.midi
 
+    const getFileNameFromUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null
+        try {
+            const raw = new URL(url).pathname.split('/').filter(Boolean).pop() || null
+            return raw ? decodeURIComponent(raw) : null
+        } catch {
+            const fallback = url.split('?')[0].split('/').filter(Boolean).pop()
+            return fallback ? decodeURIComponent(fallback) : null
+        }
+    }
+
+    const uploadedFileNames: Record<string, string | null> = {
+        xml: getFileNameFromUrl(config.xml_url),
+        midi: getFileNameFromUrl(config.midi_url),
+        audio: getFileNameFromUrl(config.audio_url),
+    }
+
     // ---------- step logic per mode ----------
     const steps: Array<'xml' | 'midi' | 'audio'> =
         mode === 'live-audio'
@@ -453,7 +470,9 @@ export function UploadWizardV2({
                                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                                     {stagedFiles[stepKey]
                                                         ? `${stagedFiles[stepKey].name} ready to upload`
-                                                        : cfg.successMsg}
+                                                        : uploadedFileNames[stepKey]
+                                                            ? `${uploadedFileNames[stepKey]} — uploaded`
+                                                            : cfg.successMsg}
                                                 </p>
                                                 <button
                                                     onClick={() => setReplacing(replacing === stepKey ? null : stepKey)}
