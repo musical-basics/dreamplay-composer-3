@@ -935,15 +935,25 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         if (clickedMeasureIndex !== -1) {
             const measureNumber = clickedMeasureIndex + 1
 
+            const isValidTimePoint = (measure: number, time: number) => {
+                if (!Number.isFinite(time)) return false
+                if (time < 0) return false
+                if (measure > 1 && time === 0) return false
+                return true
+            }
+
             const exactBeatAnchor = beatAnchors
                 .filter((b) => b.measure === measureNumber)
-                .sort((a, b) => a.beat - b.beat)[0]
+                .sort((a, b) => a.beat - b.beat)
+                .find((b) => isValidTimePoint(b.measure, b.time))
             if (exactBeatAnchor) {
                 getPlaybackManager().seek(exactBeatAnchor.time)
                 return
             }
 
-            const sortedAnchors = [...anchors].sort((a, b) => a.measure - b.measure)
+            const sortedAnchors = [...anchors]
+                .filter((a) => isValidTimePoint(a.measure, a.time))
+                .sort((a, b) => a.measure - b.measure)
             const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
             if (exactAnchor) {
                 getPlaybackManager().seek(exactAnchor.time)
@@ -967,9 +977,16 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
             if (upperAnchor) {
                 getPlaybackManager().seek(upperAnchor.time)
+                return
+            }
+
+            const totalMeasures = Array.isArray(measureList) ? measureList.length : 0
+            if (totalMeasures > 0 && duration > 0) {
+                const fallbackTime = ((measureNumber - 1) / Math.max(1, totalMeasures - 1)) * duration
+                getPlaybackManager().seek(fallbackTime)
             }
         }
-    }, [anchors, beatAnchors, osmd, scoreZoomX])
+    }, [anchors, beatAnchors, osmd, scoreZoomX, duration])
 
     return (
         <div ref={scrollContainerRef} className={`relative w-full h-full overflow-auto overscroll-none ${darkMode ? 'bg-zinc-900' : 'bg-white'}`}>
