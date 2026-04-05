@@ -244,13 +244,26 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             progress = Math.max(0, Math.min(1, (time - currentP.time) / (nextP.time - currentP.time)))
         } else if (!nextP && currentP && time > currentP.time) {
             // Past the last anchor/beat anchor — extrapolate forward
+            // Account for fractional position if last point was mid-measure (e.g. M9 B3 in 4/4 = 50% through)
             const anchorsSorted = [...anchors].sort((a, b) => a.time - b.time)
             const avgMeasureDur = estimateMeasureDuration(anchorsSorted)
             const elapsed = time - currentP.time
-            const measuresElapsed = Math.floor(elapsed / avgMeasureDur)
-            measure = currentP.measure + measuresElapsed
-            beat = 1
-            progress = Math.max(0, Math.min(1, (elapsed - measuresElapsed * avgMeasureDur) / avgMeasureDur))
+            // Estimate how far into the measure the last beat anchor was (assume 4 beats per measure)
+            const beatFraction = (currentP.beat - 1) / 4 // e.g. beat 3 → 0.5
+            const remainingInMeasure = (1 - beatFraction) * avgMeasureDur
+            if (elapsed < remainingInMeasure) {
+                // Still within the same measure — interpolate remaining portion
+                measure = currentP.measure
+                beat = currentP.beat
+                progress = beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure))
+            } else {
+                // Passed into next measure(s)
+                const elapsedAfterMeasure = elapsed - remainingInMeasure
+                const fullMeasures = Math.floor(elapsedAfterMeasure / avgMeasureDur)
+                measure = currentP.measure + 1 + fullMeasures
+                beat = 1
+                progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * avgMeasureDur) / avgMeasureDur))
+            }
         }
         if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: true }
 
