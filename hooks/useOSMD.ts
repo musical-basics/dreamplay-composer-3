@@ -67,9 +67,10 @@ export function useOSMD(
             console.log('[OSMD] Detected format:', isZip ? 'MXL (ZIP)' : 'XML text')
 
             if (isZip) {
-                // OSMD accepts ArrayBuffer for MXL at runtime; types are incomplete
-                console.log('[OSMD] Loading as ArrayBuffer, size:', buffer.byteLength)
-                await osmd.load(buffer as unknown as string)
+                // OSMD accepts Blob for MXL — wraps ArrayBuffer so JSZip can decompress
+                const blob = new Blob([buffer], { type: 'application/vnd.recordare.musicxml' })
+                console.log('[OSMD] Loading as Blob, size:', blob.size)
+                await osmd.load(blob)
             } else {
                 const decoder = new TextDecoder()
                 const text = decoder.decode(buffer)
