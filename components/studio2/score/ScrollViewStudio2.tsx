@@ -1072,11 +1072,14 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
         if (clickedMeasureIndex !== -1) {
             const measureNumber = clickedMeasureIndex + 1
+            const pm = getPlaybackManager()
+            const maxSeekTime = duration > 0 ? duration : Infinity
 
             const isValidTimePoint = (measure: number, time: number) => {
                 if (!Number.isFinite(time)) return false
                 if (time < 0) return false
                 if (measure > 1 && time === 0) return false
+                if (time > maxSeekTime) return false
                 return true
             }
 
@@ -1085,7 +1088,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 .sort((a, b) => a.beat - b.beat)
                 .find((b) => isValidTimePoint(b.measure, b.time))
             if (exactBeatAnchor) {
-                getPlaybackManager().seek(exactBeatAnchor.time)
+                pm.seek(exactBeatAnchor.time)
                 return
             }
 
@@ -1094,7 +1097,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 .sort((a, b) => a.measure - b.measure)
             const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
             if (exactAnchor) {
-                getPlaybackManager().seek(exactAnchor.time)
+                pm.seek(exactAnchor.time)
                 return
             }
 
@@ -1104,24 +1107,34 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             if (lowerAnchor && upperAnchor && upperAnchor.measure > lowerAnchor.measure) {
                 const ratio = (measureNumber - lowerAnchor.measure) / (upperAnchor.measure - lowerAnchor.measure)
                 const interpolatedTime = lowerAnchor.time + ((upperAnchor.time - lowerAnchor.time) * ratio)
-                getPlaybackManager().seek(interpolatedTime)
+                pm.seek(Math.min(interpolatedTime, maxSeekTime))
+                return
+            }
+
+            // Fallback: estimate time from valid anchors using median measure duration
+            if (sortedAnchors.length >= 2) {
+                const lastValid = sortedAnchors[sortedAnchors.length - 1]
+                const firstValid = sortedAnchors[0]
+                const avgMeasureDur = (lastValid.time - firstValid.time) / Math.max(1, lastValid.measure - firstValid.measure)
+                const estimatedTime = firstValid.time + (measureNumber - firstValid.measure) * avgMeasureDur
+                pm.seek(Math.min(estimatedTime, maxSeekTime))
                 return
             }
 
             if (lowerAnchor) {
-                getPlaybackManager().seek(lowerAnchor.time)
+                pm.seek(lowerAnchor.time)
                 return
             }
 
             if (upperAnchor) {
-                getPlaybackManager().seek(upperAnchor.time)
+                pm.seek(upperAnchor.time)
                 return
             }
 
             const totalMeasures = Array.isArray(measureList) ? measureList.length : 0
             if (totalMeasures > 0 && duration > 0) {
                 const fallbackTime = ((measureNumber - 1) / Math.max(1, totalMeasures - 1)) * duration
-                getPlaybackManager().seek(fallbackTime)
+                pm.seek(fallbackTime)
             }
         }
     }, [anchors, beatAnchors, osmd, scoreZoomX, duration])
