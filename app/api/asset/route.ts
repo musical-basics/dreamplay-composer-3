@@ -66,6 +66,8 @@ export async function GET(request: NextRequest) {
             status: 200,
             headers: {
                 'Content-Type': inferContentType(parsedUrl, upstreamResponse.headers.get('content-type')),
+                'Content-Length': String(buffer.byteLength),
+                'Accept-Ranges': 'none',
                 'Cache-Control': 'no-store',
             },
         })

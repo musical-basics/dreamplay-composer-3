@@ -69,7 +69,7 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
         const proxiedAudioUrl = `/api/asset?url=${encodeURIComponent(audioUrl)}`
         const audio = new Audio(proxiedAudioUrl)
         audio.crossOrigin = 'anonymous'
-        audio.preload = 'metadata'
+        audio.preload = 'auto'
         audioRef.current = audio
 
         const handleLoadedMetadata = () => {
@@ -94,15 +94,42 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
             })
         }
 
+        const handleStalled = () => {
+            console.warn('[Studio2 Audio] STALLED — browser stopped buffering', {
+                currentTime: audio.currentTime,
+                duration: audio.duration,
+                readyState: audio.readyState,
+                networkState: audio.networkState,
+                buffered: audio.buffered.length > 0
+                    ? Array.from({ length: audio.buffered.length }, (_, i) => `${audio.buffered.start(i)}-${audio.buffered.end(i)}`).join(', ')
+                    : 'none',
+            })
+        }
+        const handleWaiting = () => {
+            console.warn('[Studio2 Audio] WAITING — playback stopped, waiting for data', {
+                currentTime: audio.currentTime,
+                duration: audio.duration,
+                readyState: audio.readyState,
+                networkState: audio.networkState,
+                buffered: audio.buffered.length > 0
+                    ? Array.from({ length: audio.buffered.length }, (_, i) => `${audio.buffered.start(i)}-${audio.buffered.end(i)}`).join(', ')
+                    : 'none',
+            })
+        }
+
         const pm = getPlaybackManager()
         pm.setAudioElement(audio)
         audio.addEventListener('loadedmetadata', handleLoadedMetadata)
         audio.addEventListener('loadedmetadata', () => { pm.duration = audio.duration })
         audio.addEventListener('error', handleAudioError)
+        audio.addEventListener('stalled', handleStalled)
+        audio.addEventListener('waiting', handleWaiting)
 
         return () => {
             audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
             audio.removeEventListener('error', handleAudioError)
+            audio.removeEventListener('stalled', handleStalled)
+            audio.removeEventListener('waiting', handleWaiting)
             audio.pause()
             audio.removeAttribute('src')
             audio.load()
