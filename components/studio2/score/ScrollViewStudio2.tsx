@@ -280,69 +280,51 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         let progress = 0
         let measure = currentP?.measure ?? 1
         let beat = currentP?.beat ?? 1
+        let outlierOverride = false
+
+        // Helper: advance measure/beat/progress at median tempo from a starting beat position
+        const advanceAtMedianTempo = (elapsed: number, startMeasure: number, startBeat: number) => {
+            const beatFraction = (startBeat - 1) / 4
+            const remainingInMeasure = (1 - beatFraction) * medianGap
+            if (elapsed < remainingInMeasure) {
+                return { measure: startMeasure, beat: startBeat, progress: beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure)) }
+            }
+            const elapsedAfterMeasure = elapsed - remainingInMeasure
+            const fullMeasures = Math.floor(elapsedAfterMeasure / medianGap)
+            return {
+                measure: startMeasure + 1 + fullMeasures,
+                beat: 1,
+                progress: Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * medianGap) / medianGap))
+            }
+        }
 
         if (nextP && nextP.time > currentP.time) {
             const gap = nextP.time - currentP.time
             if (gap > maxReasonableGap) {
-                // Outlier gap detected — V5 mapper error. Advance at median tempo instead.
-                const elapsed = time - currentP.time
-                const beatFraction = (currentP.beat - 1) / 4
-                const remainingInMeasure = (1 - beatFraction) * medianGap
-                if (elapsed < remainingInMeasure) {
-                    measure = currentP.measure
-                    beat = currentP.beat
-                    progress = beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure))
-                } else {
-                    const elapsedAfterMeasure = elapsed - remainingInMeasure
-                    const fullMeasures = Math.floor(elapsedAfterMeasure / medianGap)
-                    measure = currentP.measure + 1 + fullMeasures
-                    beat = 1
-                    progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * medianGap) / medianGap))
-                }
+                // Outlier gap — advance at median tempo instead of crawling through the gap
+                const result = advanceAtMedianTempo(time - currentP.time, currentP.measure, currentP.beat)
+                measure = result.measure
+                beat = result.beat
+                progress = result.progress
+                outlierOverride = true
             } else {
                 progress = Math.max(0, Math.min(1, (time - currentP.time) / gap))
             }
         } else if (!nextP && currentP && time > currentP.time) {
             // Past the last anchor — extrapolate forward at median tempo
-            const elapsed = time - currentP.time
-            const beatFraction = (currentP.beat - 1) / 4
-            const remainingInMeasure = (1 - beatFraction) * medianGap
-            if (elapsed < remainingInMeasure) {
-                measure = currentP.measure
-                beat = currentP.beat
-                progress = beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure))
-            } else {
-                const elapsedAfterMeasure = elapsed - remainingInMeasure
-                const fullMeasures = Math.floor(elapsedAfterMeasure / medianGap)
-                measure = currentP.measure + 1 + fullMeasures
-                beat = 1
-                progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * medianGap) / medianGap))
-            }
+            const result = advanceAtMedianTempo(time - currentP.time, currentP.measure, currentP.beat)
+            measure = result.measure
+            beat = result.beat
+            progress = result.progress
+            outlierOverride = true
         }
-        if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: true }
-
-        // M10 DEBUG: log when near measure 10 (with beat anchors path)
-        if (measure >= 9 && measure <= 11) {
-            const now = performance.now()
-            if (now - lastM10LogRef.current > 500) {
-                lastM10LogRef.current = now
-                // Find points near M9-M10 for debugging
-                const m9m10points = allPoints.filter(p => p.measure >= 9 && p.measure <= 11)
-                const currentPIdx = allPoints.indexOf(currentP)
-                console.log(`[M10 DEBUG findPos] time=${time.toFixed(3)} → M${measure} B${beat} prog=${progress.toFixed(3)} | ` +
-                    `currentP: M${currentP?.measure} B${currentP?.beat} t=${currentP?.time?.toFixed(3)} (idx ${currentPIdx}/${allPoints.length}) | ` +
-                    `nextP: ${nextP ? `M${nextP.measure} B${nextP.beat} t=${nextP.time.toFixed(3)}` : 'NULL'} | ` +
-                    `anchors=${anchors.length} beatAnchors=${beatAnchors.length} totalPts=${allPoints.length} | ` +
-                    `M9-M10 points=${m9m10points.length} | ` +
-                    `lastPt: M${allPoints[allPoints.length-1]?.measure} B${allPoints[allPoints.length-1]?.beat} t=${allPoints[allPoints.length-1]?.time?.toFixed(3)}`
-                )
-            }
-        }
+        if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: false }
 
         return {
             measure, beat,
-            nextMeasure: nextP?.measure, nextBeat: nextP?.beat,
-            progress, isBeatInterpolation: !!nextP
+            nextMeasure: outlierOverride ? undefined : nextP?.measure,
+            nextBeat: outlierOverride ? undefined : nextP?.beat,
+            progress, isBeatInterpolation: !outlierOverride && !!nextP
         }
     }, [anchors, beatAnchors, duration])
 
