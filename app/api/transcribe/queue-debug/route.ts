@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getTranscriptionQueue } from '@/lib/queue'
 
+const STALE_WAIT_MS = Number(process.env.TRANSCRIPTION_STALE_WAIT_MS || 2 * 60 * 1000)
+
 /**
  * GET /api/transcribe/queue-debug
  * Temporary diagnostic endpoint — shows queue state to diagnose why Modal isn't getting called.
@@ -8,6 +10,7 @@ import { getTranscriptionQueue } from '@/lib/queue'
 export async function GET() {
     try {
         const queue = getTranscriptionQueue()
+        const now = Date.now()
 
         const [waiting, active, failed, completed, delayed] = await Promise.all([
             queue.getWaiting(),
@@ -16,6 +19,16 @@ export async function GET() {
             queue.getCompleted(),
             queue.getDelayed(),
         ])
+
+        const waitingWithAge = waiting.map((job) => {
+            const ageMs = Math.max(0, now - (job.timestamp || now))
+            return { job, ageMs, stale: ageMs >= STALE_WAIT_MS }
+        })
+
+        const staleWaiting = waitingWithAge.filter((entry) => entry.stale)
+        const oldestWaitingAgeMs = waitingWithAge.length > 0
+            ? waitingWithAge.reduce((max, entry) => Math.max(max, entry.ageMs), 0)
+            : 0
 
         const summarize = (jobs: any[]) =>
             jobs.map((j) => ({
@@ -37,7 +50,16 @@ export async function GET() {
                 completed: completed.length,
                 delayed: delayed.length,
             },
-            waiting: summarize(waiting),
+            health: {
+                staleWaitThresholdMs: STALE_WAIT_MS,
+                staleWaitingCount: staleWaiting.length,
+                oldestWaitingAgeMs,
+            },
+            waiting: waitingWithAge.map((entry) => ({
+                ...summarize([entry.job])[0],
+                ageMs: entry.ageMs,
+                stale: entry.stale,
+            })),
             active: summarize(active),
             failed: summarize(failed.slice(0, 5)), // last 5 failures
             completed: summarize(completed.slice(-3)), // last 3 completions

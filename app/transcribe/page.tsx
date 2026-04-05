@@ -85,6 +85,18 @@ export default function TranscribePage() {
                 const res = await fetch(`/api/transcribe/status?jobId=${jobId}`)
                 const data = await res.json()
 
+                if (data.recovery?.staleWakeTriggered) {
+                    if (data.recovery.staleWakeError) {
+                        log(`Stale-job wake attempt failed (non-fatal): ${data.recovery.staleWakeError}`)
+                    } else {
+                        log(`Stale-job recovery: wake trigger sent (job age ${Math.round((data.ageMs || 0) / 1000)}s)`)
+                    }
+                }
+
+                if (data.recovery?.retriedAsJobId) {
+                    log(`Transient failure auto-retry queued: ${data.recovery.retriedAsJobId}`)
+                }
+
                 // Track progress updates
                 if (data.progress?.percent != null) {
                     if (lastStageRef.current !== data.progress.stage) {

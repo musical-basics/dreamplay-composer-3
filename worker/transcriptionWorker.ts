@@ -37,6 +37,20 @@ const supabase = createClient(
 
 const MODAL_URL = process.env.MODAL_TRANSCRIBER_URL!
 
+function redactUrlForLogs(url: string): string {
+    try {
+        const parsed = new URL(url)
+        return `${parsed.origin}${parsed.pathname}`
+    } catch {
+        return url
+    }
+}
+
+function truncate(text: string, max = 400): string {
+    if (text.length <= max) return text
+    return `${text.slice(0, max)}...`
+}
+
 // ---------------------------------------------------------------------------
 // Worker
 // ---------------------------------------------------------------------------
@@ -45,6 +59,7 @@ const worker = new Worker(
     async (job) => {
         const { configId, audioUrl } = job.data
         console.log(`[transcription] Job ${job.id} started — configId=${configId}`)
+        console.log(`[transcription] Audio source: ${redactUrlForLogs(audioUrl)}`)
 
         await job.updateProgress({ percent: 5, stage: 'Connecting to GPU...' })
 
@@ -52,16 +67,34 @@ const worker = new Worker(
         console.log(`[transcription] Calling Modal GPU at ${MODAL_URL}`)
         await job.updateProgress({ percent: 10, stage: 'GPU spinning up — downloading audio...' })
 
-        const modalResponse = await fetch(MODAL_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audio_url: audioUrl }),
-        })
+        const modalRequestStartedAt = Date.now()
+        let modalResponse: Response
+
+        try {
+            modalResponse = await fetch(MODAL_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ audio_url: audioUrl }),
+            })
+        } catch (error) {
+            const elapsedMs = Date.now() - modalRequestStartedAt
+            const message = error instanceof Error ? error.message : String(error)
+            throw new Error(`GPU transcription request failed after ${elapsedMs}ms: ${message}`)
+        }
+
+        const modalElapsedMs = Date.now() - modalRequestStartedAt
+        const modalCallId = modalResponse.headers.get('modal-function-call-id') || 'n/a'
+        const modalContentType = modalResponse.headers.get('content-type') || 'unknown'
+        const modalContentLength = modalResponse.headers.get('content-length') || 'unknown'
+
+        console.log(
+            `[transcription] Modal response: status=${modalResponse.status} elapsedMs=${modalElapsedMs} callId=${modalCallId} contentType=${modalContentType} contentLength=${modalContentLength}`
+        )
 
         if (!modalResponse.ok) {
             const errorText = await modalResponse.text()
             throw new Error(
-                `GPU transcription failed (${modalResponse.status}): ${errorText}`
+                `GPU transcription failed (status=${modalResponse.status}, callId=${modalCallId}, elapsedMs=${modalElapsedMs}): ${truncate(errorText)}`
             )
         }
 
@@ -70,8 +103,13 @@ const worker = new Worker(
         // 2. Receive raw MIDI binary from response
         const midiArrayBuffer = await modalResponse.arrayBuffer()
         const midiBuffer = Buffer.from(midiArrayBuffer)
+
+        if (midiBuffer.length === 0) {
+            throw new Error(`GPU transcription returned empty MIDI payload (callId=${modalCallId})`)
+        }
+
         console.log(
-            `[transcription] Received MIDI: ${midiBuffer.length} bytes`
+            `[transcription] Received MIDI: ${midiBuffer.length} bytes (callId=${modalCallId})`
         )
 
         await job.updateProgress({ percent: 80, stage: 'Uploading MIDI to storage...' })
