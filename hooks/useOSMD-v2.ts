@@ -53,7 +53,22 @@ export function useOSMD(
                 renderSingleHorizontalStaffline: true,
             })
 
-            await osmd.load(url)
+            // Fetch the file ourselves to detect format by content,
+            // since MXL files may be stored with a .xml extension.
+            const response = await fetch(url)
+            if (!response.ok) throw new Error(`Failed to fetch score: ${response.status}`)
+            const buffer = await response.arrayBuffer()
+            const bytes = new Uint8Array(buffer)
+
+            // ZIP magic bytes (0x50 0x4B) indicate MXL (compressed MusicXML)
+            const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B
+            if (isZip) {
+                // OSMD accepts ArrayBuffer for MXL at runtime; types are incomplete
+                await osmd.load(buffer as unknown as string)
+            } else {
+                const decoder = new TextDecoder()
+                await osmd.load(decoder.decode(buffer))
+            }
 
             // Ignore system/page breaks embedded in MusicXML
             osmd.EngravingRules.NewSystemAtXMLNewSystemAttribute = false

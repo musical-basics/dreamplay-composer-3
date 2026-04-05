@@ -52,17 +52,21 @@ export function useOSMD(
                 renderSingleHorizontalStaffline: true,
             })
 
-            // MXL files (compressed MusicXML) need ArrayBuffer, not URL string.
-            // OSMD's internal URL fetch doesn't handle MXL binary correctly.
-            const isMxl = url.toLowerCase().includes('.mxl')
-            if (isMxl) {
-                // Fetch through proxy to avoid CORS, get binary
-                const proxyUrl = `/api/xml?url=${encodeURIComponent(url)}`
-                const response = await fetch(proxyUrl)
-                const buffer = await response.arrayBuffer()
-                await osmd.load(buffer)
+            // Fetch the file ourselves to detect format by content,
+            // since MXL files may be stored with a .xml extension.
+            const response = await fetch(url)
+            if (!response.ok) throw new Error(`Failed to fetch score: ${response.status}`)
+            const buffer = await response.arrayBuffer()
+            const bytes = new Uint8Array(buffer)
+
+            // ZIP magic bytes (0x50 0x4B) indicate MXL (compressed MusicXML)
+            const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B
+            if (isZip) {
+                // OSMD accepts ArrayBuffer for MXL at runtime; types are incomplete
+                await osmd.load(buffer as unknown as string)
             } else {
-                await osmd.load(url)
+                const decoder = new TextDecoder()
+                await osmd.load(decoder.decode(buffer))
             }
             osmd.render()
 

@@ -195,8 +195,13 @@ export default function AdminEditor() {
     // -----------------------------------------------------------------------
     // Transcription trigger: queue job when live-audio mode completes
     // -----------------------------------------------------------------------
+    // Use ref so handleTranscribe always reads latest config
+    const configRef = useRef(config)
+    useEffect(() => { configRef.current = config }, [config])
+
     const handleTranscribe = async () => {
-        if (!config?.audio_url || transcribing) return
+        const currentConfig = configRef.current
+        if (!currentConfig?.audio_url || transcribing) return
         setTranscribing(true)
 
         try {
@@ -205,7 +210,7 @@ export default function AdminEditor() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     configId,
-                    audioUrl: config.audio_url,
+                    audioUrl: currentConfig.audio_url,
                 }),
             })
             const data = await res.json()
@@ -607,8 +612,8 @@ export default function AdminEditor() {
         'Almost ready...',
     ]
 
-    // Minimum 3s loading screen — only for configs that have files to load
-    const hasFilesToLoad = !!(config?.xml_url && config?.midi_url)
+    // Minimum 3s loading screen — show when any files need to load
+    const hasFilesToLoad = !!(config?.xml_url || config?.midi_url)
     useEffect(() => {
         if (!hasFilesToLoad) {
             setMinLoadingDone(true)
@@ -691,6 +696,10 @@ export default function AdminEditor() {
                             onUploadXml={handleXmlUpload}
                             onUploadMidi={handleMidiUpload}
                             onTranscribe={handleTranscribe}
+                            onRefreshConfig={async () => {
+                                const fresh = await fetchConfigById(configId)
+                                if (fresh) setConfig(fresh)
+                            }}
                             transcribing={transcribing}
                             transcriptionJobId={transcriptionJobId}
                         />
