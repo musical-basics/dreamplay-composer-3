@@ -27,26 +27,134 @@ Missing beat anchors: M9 B2, M9 B4, M10 B1, M10 B2, M10 B3 — the mapper failed
 - By M25-M27, runaway detection fires: `Runaway detected (10/10 bad). Auto-recovering without pause at M27 B4.`
 - After the MIDI runs out (~59s), dead-reckoning continues using AQNTL=0.5s, producing anchor times up to 328s for M160
 
-### Root cause (FIXED — 2026-04-05)
-The `stepV5()` stray-note rejection path advanced `midiCursor` past rejected chord clusters
-even though `currentEventIndex` was NOT advanced (i.e., the same XML event was being retried).
-This permanently moved the MIDI scan cursor past the correct notes for subsequent beats.
+### Root cause (FIXED — 2026-04-05, commit f636713)
 
-Specifically:
-- M9 B2 partial chord → stray rejection → `midiCursor` advances past notes at t≈16.0s  
-- M9 B4 stray rejection → `midiCursor` advances past notes at t≈17.0s  
-- M10 B1 scan window is `[15.4s, 17.4s]` (correct!) but `startIndex = midiCursor` is now past t=17.4s  
-- `scanWindow()` and `findContinuityResyncMatch()` both start from t=20.3s → finds wrong notes
+**The actual cause** (discovered by inspecting the raw MIDI + MusicXML files):
+
+XML M9 (mapper M10) beat 1 contains G1/G2 notes from the LEFT HAND that are
+**tie-continuations** from M9 beat 3 (where those notes begin at t=16.436). Tied notes
+appear as real `<note>` elements in MusicXML, but produce **no new MIDI note-on events**
+at that position — the note was already sounding since M9 B3.
+
+**The false-match chain:**
+1. OSMD includes the tie-stop G1/G2 notes in the `xmlEventsList` as if they're real new onsets
+2. Mapper searches for pitches `[31, 43]` at M10 B1 (~t=17.4s)
+3. No MIDI note-on exists there (of course — the note started at t=16.436)
+4. Window scan and wide scan both fail
+5. Fresh scan (`findContinuityResyncMatch`) expands window to t=20.356s
+6. Pitch=43 (G2) coincidentally appears at t=20.324s in a completely different passage
+7. **False match → M10 anchored at t=20.32 instead of ~t=17.8s**
+
+**The gap:** MIDI has no note-ons between t=16.442 and t=18.645. The actual first new
+onset of M10 content is G3 at t=18.645 (right-hand beat 3.5 of M10, after 2.5 beats of rest).
 
 ### Fix
-Added `straySkipCursor?: number` to `V5MapperState`. In the stray rejection retry path,
-only `straySkipCursor` is advanced (not `midiCursor`). All `scanWindow()`,
-`findBestChordMatchInWindow()`, and `findContinuityResyncMatch()` calls now use
-`scanStartIndex = max(midiCursor, straySkipCursor ?? 0)` as their start index.
-`straySkipCursor` is reset to `undefined` on every path that advances `currentEventIndex`.
+In `calculateNoteMap` (`ScrollViewStudio2.tsx`), added a tie-continuation check before
+adding pitches to `beatAccumulator` for `xmlEventsList`:
+```typescript
+const noteTie = n.sourceNote.NoteTie;
+if (noteTie) {
+    const tieNotes = noteTie.Notes;
+    const isTieContinuation = Array.isArray(tieNotes)
+        ? tieNotes.length > 0 && tieNotes[0] !== n.sourceNote
+        : noteTie.StartNote && noteTie.StartNote !== n.sourceNote;
+    if (isTieContinuation) return;
+}
+```
+Tie-stop notes are now excluded from `xmlEventsList`. M10 B1 will have no pitches
+(or be absent entirely), so the mapper skips it and correctly moves on to find G3
+at t=18.645 as the actual first mappable event in M10.
 
-This means: stray note clusters are skipped within a retry loop, but the primary `midiCursor`
-position is preserved so it can look backward into the correct time window on the next attempt.
+### Earlier (incorrect) fix attempt
+A `straySkipCursor` change was also made to `AutoMapperV5.ts` to prevent midiCursor
+runaway during stray-rejection loops. That fix is architecturally valid and kept,
+but was NOT the root cause of the M10 misanchor.
+
+---
+
+## Full Fix Timeline (How We Found It)
+
+### Attempt 1: midiCursor runaway during stray-note rejection (WRONG hypothesis)
+
+Initial code analysis of `AutoMapperV5.ts` suggested: the stray-note rejection path
+permanently advances `midiCursor` even when `currentEventIndex` is NOT advanced (same XML
+event being retried). This would push the scan start past valid notes on retry.
+
+**Fix shipped:** Added `straySkipCursor` to `V5MapperState`. Stray rejections advance
+`straySkipCursor` instead of `midiCursor`. All scan calls use
+`scanStartIndex = max(midiCursor, straySkipCursor ?? 0)`. Valid architectural fix, kept —
+but **not** the root cause.
+
+**After re-mapping:** M10 still at t=20.32. No effect.
+
+### Attempt 2: Fresh-scan minTime drift (NOT TESTED)
+
+Theory: dead-reckoning increments `lastAnchorTime`. After several dead-reckons, `lastAnchorTime`
+drifts past the real note time (~17.4s). `findContinuityResyncMatch` sets
+`minTime = max(lastAnchorTime, ...)`, which floors the fresh scan above the real notes.
+`lastRealMatchTime?: number` reserved in state for a future fix.
+
+**Bypassed** — investigation moved to inspecting the raw data directly.
+
+### Root Cause Found: Inspecting the raw MIDI + MusicXML files
+
+Parsed `Sunflowers Final MIDI.mid` and `Sunflowers MusicXML.musicxml` with Node.js scripts.
+
+**MIDI note-ons in the 14–22s window:**
+```
+t=15.461–15.469  pitches=[67,38,41,45,50]  ← M9 B1, matched correctly
+t=16.436         pitch=31  (G1, left hand chord)
+t=16.442         pitch=43  (G2, left hand chord)
+       ← 2.2-second SILENCE: no MIDI note-ons from t=16.442 to t=18.645 →
+t=18.645         pitch=55  (G3, right-hand riff — first real M10 onset)
+...
+t=20.324         pitch=43  ← the FALSE match
+```
+
+**MusicXML measure 9 (mapper M10), Voice 2 (left hand):**
+```xml
+<note><chord/><pitch><step>G</step><octave>1</octave></pitch>
+  <tie type="stop"/>   ← tied from M9 B3 (t=16.436)
+```
+
+**The discovery:** MusicXML represents ties across barlines by re-emitting the note element
+in the next measure with `<tie type="stop"/>`. The element has real `<step>`, `<octave>`,
+and `<duration>` — it looks like a genuine onset to naive code.
+
+In MIDI, a tie is a **single long note-on**. The G1/G2 note-on fired at M9 B3 (t=16.436).
+**There is no new note-on at M10 B1.** But `calculateNoteMap` was adding these tie-stop
+notes to `beatAccumulator` as if they were real attacks, creating an `xmlEventsList` entry
+for M10 B1 with pitches `[31, 43]`.
+
+**False-match chain:**
+1. Mapper looks for `[31, 43]` at M10 B1 (~t=17.4s)
+2. Window scan: no MIDI notes → miss
+3. Wide scan: still misses
+4. Fresh scan: `maxTime = 17.4 + 2.94 = 20.35s`
+5. Pitch=43 (G2) appears coincidentally at t=20.324s in an unrelated passage
+6. **False match → M10 anchored at t=20.32** ✗
+
+**The fix:** In `calculateNoteMap`, skip tie-continuation notes before adding to accumulator:
+```typescript
+const noteTie = n.sourceNote.NoteTie;
+if (noteTie) {
+    const isTieContinuation = Array.isArray(noteTie.Notes)
+        ? noteTie.Notes.length > 0 && noteTie.Notes[0] !== n.sourceNote
+        : noteTie.StartNote && noteTie.StartNote !== n.sourceNote;
+    if (isTieContinuation) return;
+}
+```
+M10 B1 now has no pitches. Mapper dead-reckons through it and correctly picks up G3 at
+t=18.645 (real first onset). M10 anchors at ~t=18.7s. ✓
+
+**Why it was hard to find:** The bug lives at the boundary between two systems — what
+MusicXML calls a "note element" vs what MIDI calls a "note-on event." Every individual
+component (mapper, MIDI parser, OSMD renderer) was behaving correctly. The false match
+was plausible because pitch 43 is common and the fresh-scan window is intentionally wide
+for tempo variation. Six abstraction layers separated cause (XML extraction) from symptom
+(cursor freeze at M10).
+
+---
 
 ### What was tried
 - Filtering anchor points beyond audio duration (helps with dead-reckoned junk past 59s, but M10 at 20.3s is within audio duration)
@@ -172,9 +280,10 @@ The MusicXML does NOT have repeat signs. All 160 measures are unique. The wrappi
 
 ## What Still Needs Fixing
 
-### 1. V5 mapper fails at M10 for this piece — **FIXED 2026-04-05**
-Root cause was `straySkipCursor` bug (see above). Fix is in `lib/engine/AutoMapperV5.ts` +
-`lib/types.ts`. Re-map "Sunflowers" and verify M10 anchor lands at ~17.3-17.5s.
+### 1. V5 mapper wrong anchor at M10 — **FIXED 2026-04-05 (commit f636713)**
+Root cause: tie-continuation notes in MusicXML were included in `xmlEventsList`,
+creating phantom events the mapper searched for but MIDI never produced note-ons for.
+Fix: filter out `sourceNote.NoteTie.Notes[0] !== sourceNote` notes in `calculateNoteMap`.
 
 ### 2. Dead-reckoned anchors past MIDI duration
 After M25-M27, the mapper runs out of MIDI notes but keeps dead-reckoning using AQNTL=0.5s,
