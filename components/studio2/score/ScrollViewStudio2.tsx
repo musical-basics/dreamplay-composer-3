@@ -132,6 +132,8 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     const lastHeavyUpdateMsRef = useRef<number>(0)
     const lastManualScrollTimeRef = useRef<number>(0)
     const manualScrollIntentUntilRef = useRef<number>(0)
+    const lastSyncDebugLogMsRef = useRef<number>(0)
+    const lastSyncDecisionRef = useRef<string>('')
     const perfStatsRef = useRef({
         lastLogMs: 0,
         frames: 0,
@@ -649,18 +651,56 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 const pm = getPlaybackManager()
                 const timeSinceManualScroll = performance.now() - lastManualScrollTimeRef.current
                 const userIsManuallyScrolling = timeSinceManualScroll < 1200
-                const userHasScrolledAway = Math.abs(containerScrollLeft - targetScrollLeft) > 100
+                const scrollDelta = containerScrollLeft - targetScrollLeft
+                const userHasScrolledAway = Math.abs(scrollDelta) > 100
+                let syncDecision = 'idle'
 
                 if (isLocked && pm.isPlaying) {
                     // Only auto-scroll if user hasn't manually scrolled recently, or if they've scrolled back near playback position
                     if (!userIsManuallyScrolling || !userHasScrolledAway) {
-                        if (Math.abs(containerScrollLeft - targetScrollLeft) < 250) container.scrollLeft = targetScrollLeft
+                        if (Math.abs(containerScrollLeft - targetScrollLeft) < 250) {
+                            container.scrollLeft = targetScrollLeft
+                            syncDecision = 'snap-scroll'
+                        }
                         if (currentMeasureIndex !== lastMeasureIndexRef.current && Math.abs(containerScrollLeft - targetScrollLeft) > 50) {
                             container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                            syncDecision = 'smooth-scroll'
                         }
+                        if (syncDecision === 'idle') syncDecision = 'follow-noop'
+                    } else {
+                        syncDecision = 'manual-hold'
                     }
                 } else if (currentMeasureIndex !== lastMeasureIndexRef.current) {
                     container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' })
+                    syncDecision = 'measure-change-scroll'
+                } else {
+                    syncDecision = 'not-playing-or-unlocked'
+                }
+
+                const now = performance.now()
+                const shouldLogSync =
+                    now - lastSyncDebugLogMsRef.current > 250 ||
+                    lastSyncDecisionRef.current !== syncDecision
+
+                if (shouldLogSync) {
+                    console.log('[Studio2 Sync] frame', {
+                        audioTime,
+                        measure,
+                        beat,
+                        progress,
+                        cursorX,
+                        containerScrollLeft,
+                        targetScrollLeft,
+                        scrollDelta,
+                        userIsManuallyScrolling,
+                        userHasScrolledAway,
+                        timeSinceManualScroll,
+                        isLocked,
+                        isPlaying: pm.isPlaying,
+                        syncDecision,
+                    })
+                    lastSyncDebugLogMsRef.current = now
+                    lastSyncDecisionRef.current = syncDecision
                 }
             }
 
@@ -873,6 +913,10 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
         const markManualScrollIntent = () => {
             manualScrollIntentUntilRef.current = performance.now() + 1200
+            console.log('[Studio2 Sync] manual-scroll-intent', {
+                intentUntilMs: manualScrollIntentUntilRef.current,
+                scrollLeft: container.scrollLeft,
+            })
         }
 
         const handleManualScroll = () => {
@@ -880,6 +924,11 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             if (now <= manualScrollIntentUntilRef.current) {
                 lastManualScrollTimeRef.current = now
                 manualScrollIntentUntilRef.current = now + 1200
+                console.log('[Studio2 Sync] manual-scroll-confirmed', {
+                    now,
+                    intentUntilMs: manualScrollIntentUntilRef.current,
+                    scrollLeft: container.scrollLeft,
+                })
             }
         }
 
