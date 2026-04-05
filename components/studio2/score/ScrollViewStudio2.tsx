@@ -240,9 +240,12 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             return { measure: currentM, beat: 1, progress, isBeatInterpolation: false }
         }
 
+        // Filter out anchor points with times beyond the audio duration (dead-reckoned junk from V5 mapper)
+        const audioDur = duration > 0 ? duration : Infinity
+        const maxAnchorTime = audioDur * 1.05 // 5% tolerance
         const allPoints = [
-            ...anchors.map(a => ({ measure: a.measure, beat: 1, time: a.time })),
-            ...beatAnchors.map(b => ({ measure: b.measure, beat: b.beat, time: b.time }))
+            ...anchors.filter(a => a.time <= maxAnchorTime).map(a => ({ measure: a.measure, beat: 1, time: a.time })),
+            ...beatAnchors.filter(b => b.time <= maxAnchorTime).map(b => ({ measure: b.measure, beat: b.beat, time: b.time }))
         ].sort((a, b) => a.time - b.time)
 
         let currentP = allPoints[0]
@@ -308,7 +311,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             nextMeasure: nextP?.measure, nextBeat: nextP?.beat,
             progress, isBeatInterpolation: !!nextP
         }
-    }, [anchors, beatAnchors])
+    }, [anchors, beatAnchors, duration])
 
     const applyColor = (element: HTMLElement, color: string) => {
         if (!element) return

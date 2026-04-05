@@ -325,6 +325,14 @@ export function stepV5(
     }
 
     const sorted = [...midiNotes].sort((a, b) => a.startTimeSec - b.startTimeSec)
+
+    // Stop dead-reckoning past the MIDI duration — no more notes to match against
+    const midiDuration = sorted.length > 0 ? sorted[sorted.length - 1].startTimeSec : 0
+    if (state.midiCursor >= sorted.length && state.lastAnchorTime > midiDuration) {
+        debug.log(`[V5] Stopping: past MIDI duration (lastAnchor=${state.lastAnchorTime.toFixed(3)}s, midiDuration=${midiDuration.toFixed(3)}s, remaining XML events=${xmlEvents.length - state.currentEventIndex})`)
+        return { ...state, status: 'done' }
+    }
+
     const xmlEvent = xmlEvents[state.currentEventIndex]
 
     // Calculate scan window using beatsElapsed
