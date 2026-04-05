@@ -1037,9 +1037,13 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     }, [isLoaded, updateCursorPosition])
 
     const handleScoreClick = useCallback((event: React.MouseEvent) => {
+        console.log('[ScoreClick] clicked', { hasOsmd: !!osmd.current, hasContainer: !!containerRef.current })
         const osmdInstance = osmd.current
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (!osmdInstance || !(osmdInstance as any).GraphicSheet || !containerRef.current) return
+        if (!osmdInstance || !(osmdInstance as any).GraphicSheet || !containerRef.current) {
+            console.log('[ScoreClick] early return — missing instance')
+            return
+        }
         const rect = containerRef.current.getBoundingClientRect()
         const clickX = event.clientX - rect.left
         const clickY = event.clientY - rect.top
@@ -1070,6 +1074,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             }
         }
 
+        console.log('[ScoreClick] clickedMeasureIndex:', clickedMeasureIndex, 'clickX:', clickX.toFixed(1), 'clickY:', clickY.toFixed(1))
         if (clickedMeasureIndex !== -1) {
             const measureNumber = clickedMeasureIndex + 1
             const pm = getPlaybackManager()
@@ -1088,6 +1093,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 .sort((a, b) => a.beat - b.beat)
                 .find((b) => isValidTimePoint(b.measure, b.time))
             if (exactBeatAnchor) {
+                console.log(`[ScoreClick] M${measureNumber} → beat anchor t=${exactBeatAnchor.time.toFixed(3)}`)
                 pm.seek(exactBeatAnchor.time)
                 return
             }
@@ -1097,9 +1103,11 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 .sort((a, b) => a.measure - b.measure)
             const exactAnchor = sortedAnchors.find((a) => a.measure === measureNumber)
             if (exactAnchor) {
+                console.log(`[ScoreClick] M${measureNumber} → measure anchor t=${exactAnchor.time.toFixed(3)}`)
                 pm.seek(exactAnchor.time)
                 return
             }
+            console.log(`[ScoreClick] M${measureNumber} → no exact anchor, validAnchors=${sortedAnchors.length}, maxSeekTime=${maxSeekTime.toFixed(1)}`)
 
             const lowerAnchor = [...sortedAnchors].reverse().find((a) => a.measure < measureNumber)
             const upperAnchor = sortedAnchors.find((a) => a.measure > measureNumber)
