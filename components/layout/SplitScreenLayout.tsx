@@ -66,16 +66,46 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
         // Step 14: In studio mode, skip audio element entirely
         if (isStudioMode || !audioUrl) return
 
-        const audio = new Audio(audioUrl)
+        const proxiedAudioUrl = `/api/asset?url=${encodeURIComponent(audioUrl)}`
+        const audio = new Audio(proxiedAudioUrl)
         audio.crossOrigin = 'anonymous'
+        audio.preload = 'metadata'
         audioRef.current = audio
+
+        const handleLoadedMetadata = () => {
+            debug.log('[SplitScreen] Audio metadata loaded', {
+                sourceUrl: audioUrl,
+                proxiedAudioUrl,
+                duration: audio.duration,
+                readyState: audio.readyState,
+            })
+        }
+
+        const handleAudioError = () => {
+            const mediaError = audio.error
+            console.error('[SplitScreen] Audio failed to load', {
+                sourceUrl: audioUrl,
+                proxiedAudioUrl,
+                mediaErrorCode: mediaError?.code ?? null,
+                mediaErrorMessage: mediaError?.message ?? 'unknown audio error',
+                networkState: audio.networkState,
+                readyState: audio.readyState,
+                currentSrc: audio.currentSrc,
+            })
+        }
 
         const pm = getPlaybackManager()
         pm.setAudioElement(audio)
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata)
         audio.addEventListener('loadedmetadata', () => { pm.duration = audio.duration })
+        audio.addEventListener('error', handleAudioError)
 
         return () => {
+            audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+            audio.removeEventListener('error', handleAudioError)
             audio.pause()
+            audio.removeAttribute('src')
+            audio.load()
             pm.setAudioElement(null)
             audioRef.current = null
         }

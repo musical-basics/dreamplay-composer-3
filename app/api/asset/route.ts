@@ -10,6 +10,23 @@ function parseHostFromDomain(domain: string | undefined): string | null {
     }
 }
 
+function inferContentType(url: URL, upstreamContentType: string | null): string {
+    if (upstreamContentType && upstreamContentType !== 'application/octet-stream') {
+        return upstreamContentType
+    }
+
+    const pathname = url.pathname.toLowerCase()
+    if (pathname.endsWith('.wav')) return 'audio/wav'
+    if (pathname.endsWith('.mp3')) return 'audio/mpeg'
+    if (pathname.endsWith('.m4a')) return 'audio/mp4'
+    if (pathname.endsWith('.aac')) return 'audio/aac'
+    if (pathname.endsWith('.ogg')) return 'audio/ogg'
+    if (pathname.endsWith('.mid') || pathname.endsWith('.midi')) return 'audio/midi'
+    if (pathname.endsWith('.xml') || pathname.endsWith('.musicxml')) return 'application/xml; charset=utf-8'
+    if (pathname.endsWith('.mxl')) return 'application/vnd.recordare.musicxml'
+    return 'application/octet-stream'
+}
+
 export async function GET(request: NextRequest) {
     const target = request.nextUrl.searchParams.get('url')
     if (!target) {
@@ -48,7 +65,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(buffer, {
             status: 200,
             headers: {
-                'Content-Type': upstreamResponse.headers.get('content-type') || 'application/octet-stream',
+                'Content-Type': inferContentType(parsedUrl, upstreamResponse.headers.get('content-type')),
                 'Cache-Control': 'no-store',
             },
         })
