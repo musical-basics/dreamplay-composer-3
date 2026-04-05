@@ -563,6 +563,23 @@ export function UploadWizardV2({
                                     <>Upload & Enter Editor <ArrowRight className="w-5 h-5 ml-2" /></>
                                 )}
                             </Button>
+                            <button
+                                onClick={() => {
+                                    // Clear the last staged file so user lands back on that step
+                                    const lastStep = [...steps].reverse().find((s) => stagedFiles[s])
+                                    if (lastStep) {
+                                        setStagedFiles((prev) => {
+                                            const next = { ...prev }
+                                            delete next[lastStep]
+                                            return next
+                                        })
+                                    }
+                                }}
+                                className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+                                disabled={uploadingAll}
+                            >
+                                Go back and change files
+                            </button>
                             <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
                                 <Info className="w-3 h-3" />
                                 <span>{mode === 'live-audio' ? 'Files will be uploaded, then our DreamPlay AI model will generate MIDI from your recording.' : 'Files will be uploaded, then the full editor will be unlocked.'}</span>
