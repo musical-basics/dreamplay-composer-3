@@ -20,6 +20,7 @@ import IORedis from 'ioredis'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
 import { createR2Client, getR2PublicUrl } from '../lib/r2'
+import { logJobResult, createJobLog } from '../lib/jobLogger'
 
 // ---------------------------------------------------------------------------
 // Connections
@@ -97,214 +98,241 @@ function truncate(text: string, max = 400): string {
 // ---------------------------------------------------------------------------
 // Worker
 // ---------------------------------------------------------------------------
-const worker = new Worker(
-    'transcription',
-    async (job) => {
-        const { configId, audioUrl } = job.data
-        const jobStartedAt = Date.now()
-        const events: DebugEvent[] = []
-        const timings: DebugArtifact['timings'] = {}
-        let finalMidiUrl: string | undefined
-        let midiKey: string | undefined
-        let caughtError: Error | null = null
-        let debugArtifactLocalPath: string | undefined
-        let debugArtifactR2Url: string | undefined
 
-        const logEvent = (
-            level: DebugLevel,
-            step: string,
-            message: string,
-            data?: Record<string, unknown>
-        ) => {
-            const elapsedMs = Date.now() - jobStartedAt
-            events.push({
-                at: new Date().toISOString(),
-                elapsedMs,
-                level,
-                step,
-                message,
-                data,
-            })
+async function processTranscriptionJob(
+    job: any
+): Promise<{
+    finalMidiUrl: string | undefined
+    debugArtifactLocalPath: string | undefined
+    debugArtifactR2Url: string | undefined
+}> {
+    const jobStartedAtMs = Date.now()
+    const { configId, audioUrl } = job.data
+    const jobStartedAt = jobStartedAtMs
+    const events: DebugEvent[] = []
+    const timings: DebugArtifact['timings'] = {}
+    let finalMidiUrl: string | undefined
+    let midiKey: string | undefined
+    let caughtError: Error | null = null
+    let debugArtifactLocalPath: string | undefined
+    let debugArtifactR2Url: string | undefined
 
-            const printableData = data ? ` ${JSON.stringify(data)}` : ''
-            const line = `[transcription] [job:${job.id}] [${step}] ${message}${printableData}`
-            if (level === 'error') console.error(line)
-            else if (level === 'warn') console.warn(line)
-            else console.log(line)
-        }
+    const logEvent = (
+        level: DebugLevel,
+        step: string,
+        message: string,
+        data?: Record<string, unknown>
+    ) => {
+        const elapsedMs = Date.now() - jobStartedAt
+        events.push({
+            at: new Date().toISOString(),
+            elapsedMs,
+            level,
+            step,
+            message,
+            data,
+        })
 
+        const printableData = data ? ` ${JSON.stringify(data)}` : ''
+        const line = `[transcription] [job:${job.id}] [${step}] ${message}${printableData}`
+        if (level === 'error') console.error(line)
+        else if (level === 'warn') console.warn(line)
+        else console.log(line)
+    }
+
+    try {
         logEvent('info', 'start', `Job started — configId=${configId}`)
         logEvent('info', 'start', 'Audio source resolved', { audioSource: redactUrlForLogs(audioUrl) })
 
         await job.updateProgress({ percent: 5, stage: 'Connecting to GPU...' })
 
+        // 1. Call Modal GPU endpoint
+        logEvent('info', 'modal', `Calling Modal GPU at ${MODAL_URL}`)
+        await job.updateProgress({ percent: 10, stage: 'GPU spinning up — downloading audio...' })
+
+        const modalRequestStartedAt = Date.now()
+        let modalResponse: Response
+
         try {
-            // 1. Call Modal GPU endpoint
-            logEvent('info', 'modal', `Calling Modal GPU at ${MODAL_URL}`)
-            await job.updateProgress({ percent: 10, stage: 'GPU spinning up — downloading audio...' })
-
-            const modalRequestStartedAt = Date.now()
-            let modalResponse: Response
-
-            try {
-                modalResponse = await fetch(MODAL_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ audio_url: audioUrl }),
-                })
-            } catch (error) {
-                const elapsedMs = Date.now() - modalRequestStartedAt
-                const message = error instanceof Error ? error.message : String(error)
-                throw new Error(`GPU transcription request failed after ${elapsedMs}ms: ${message}`)
-            }
-
-            const modalElapsedMs = Date.now() - modalRequestStartedAt
-            timings.modalMs = modalElapsedMs
-            const modalCallId = modalResponse.headers.get('modal-function-call-id') || 'n/a'
-            const modalContentType = modalResponse.headers.get('content-type') || 'unknown'
-            const modalContentLength = modalResponse.headers.get('content-length') || 'unknown'
-
-            logEvent('info', 'modal', 'Modal response received', {
-                status: modalResponse.status,
-                elapsedMs: modalElapsedMs,
-                callId: modalCallId,
-                contentType: modalContentType,
-                contentLength: modalContentLength,
-            })
-
-            if (!modalResponse.ok) {
-                const errorText = await modalResponse.text()
-                throw new Error(
-                    `GPU transcription failed (status=${modalResponse.status}, callId=${modalCallId}, elapsedMs=${modalElapsedMs}): ${truncate(errorText)}`
-                )
-            }
-
-            await job.updateProgress({ percent: 70, stage: 'MIDI generated — downloading from GPU...' })
-
-            // 2. Receive raw MIDI binary from response
-            const midiArrayBuffer = await modalResponse.arrayBuffer()
-            const midiBuffer = Buffer.from(midiArrayBuffer)
-
-            if (midiBuffer.length === 0) {
-                throw new Error(`GPU transcription returned empty MIDI payload (callId=${modalCallId})`)
-            }
-
-            logEvent('info', 'modal', 'Received MIDI payload', {
-                bytes: midiBuffer.length,
-                callId: modalCallId,
-            })
-
-            await job.updateProgress({ percent: 80, stage: 'Uploading MIDI to storage...' })
-
-            // 3. Upload MIDI to R2
-            midiKey = `midi/${configId}-ai-transcription-${Date.now()}.mid`
-            const r2UploadStartedAt = Date.now()
-            await s3.send(
-                new PutObjectCommand({
-                    Bucket: process.env.R2_BUCKET_NAME!,
-                    Key: midiKey,
-                    Body: midiBuffer,
-                    ContentType: 'audio/midi',
-                })
-            )
-            timings.r2UploadMs = Date.now() - r2UploadStartedAt
-
-            finalMidiUrl = getR2PublicUrl(midiKey)
-            logEvent('info', 'r2', 'Uploaded MIDI to R2', {
-                midiKey,
-                finalMidiUrl,
-                elapsedMs: timings.r2UploadMs,
-            })
-
-            await job.updateProgress({ percent: 90, stage: 'Updating database...' })
-
-            // 4. Update Supabase (composer.configurations)
-            const supabaseUpdateStartedAt = Date.now()
-            const { error } = await supabase
-                .from('configurations')
-                .update({ midi_url: finalMidiUrl, updated_at: new Date().toISOString() })
-                .eq('id', configId)
-            timings.supabaseUpdateMs = Date.now() - supabaseUpdateStartedAt
-
-            if (error) {
-                throw new Error(
-                    `Supabase update failed: ${error.message}`
-                )
-            }
-
-            await job.updateProgress({ percent: 100, stage: 'Complete!' })
-
-            logEvent('info', 'complete', 'Job completed — midi_url written to DB', {
-                finalMidiUrl,
-                totalMs: Date.now() - jobStartedAt,
+            modalResponse = await fetch(MODAL_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ audio_url: audioUrl }),
             })
         } catch (error) {
-            caughtError = error instanceof Error ? error : new Error(String(error))
-            logEvent('error', 'failure', 'Job failed', {
-                message: caughtError.message,
+            const elapsedMs = Date.now() - modalRequestStartedAt
+            const message = error instanceof Error ? error.message : String(error)
+            throw new Error(`GPU transcription request failed after ${elapsedMs}ms: ${message}`)
+        }
+
+        const modalElapsedMs = Date.now() - modalRequestStartedAt
+        timings.modalMs = modalElapsedMs
+        const modalCallId = modalResponse.headers.get('modal-function-call-id') || 'n/a'
+        const modalContentType = modalResponse.headers.get('content-type') || 'unknown'
+        const modalContentLength = modalResponse.headers.get('content-length') || 'unknown'
+
+        logEvent('info', 'modal', 'Modal response received', {
+            status: modalResponse.status,
+            elapsedMs: modalElapsedMs,
+            callId: modalCallId,
+            contentType: modalContentType,
+            contentLength: modalContentLength,
+        })
+
+        if (!modalResponse.ok) {
+            const errorText = await modalResponse.text()
+            throw new Error(
+                `GPU transcription failed (status=${modalResponse.status}, callId=${modalCallId}, elapsedMs=${modalElapsedMs}): ${truncate(errorText)}`
+            )
+        }
+
+        await job.updateProgress({ percent: 70, stage: 'MIDI generated — downloading from GPU...' })
+
+        // 2. Receive raw MIDI binary from response
+        const midiArrayBuffer = await modalResponse.arrayBuffer()
+        const midiBuffer = Buffer.from(midiArrayBuffer)
+
+        if (midiBuffer.length === 0) {
+            throw new Error(`GPU transcription returned empty MIDI payload (callId=${modalCallId})`)
+        }
+
+        logEvent('info', 'modal', 'Received MIDI payload', {
+            bytes: midiBuffer.length,
+            callId: modalCallId,
+        })
+
+        await job.updateProgress({ percent: 80, stage: 'Uploading MIDI to storage...' })
+
+        // 3. Upload MIDI to R2
+        midiKey = `midi/${configId}-ai-transcription-${Date.now()}.mid`
+        const r2UploadStartedAt = Date.now()
+        await s3.send(
+            new PutObjectCommand({
+                Bucket: process.env.R2_BUCKET_NAME!,
+                Key: midiKey,
+                Body: midiBuffer,
+                ContentType: 'audio/midi',
             })
-        } finally {
-            if (TRANSCRIPTION_DEBUG_MODE) {
-                const now = Date.now()
-                const artifact: DebugArtifact = {
-                    kind: 'transcription-job-debug',
-                    version: 1,
-                    jobId: String(job.id),
-                    queue: 'transcription',
-                    configId: String(configId),
-                    audioUrl: String(audioUrl),
-                    audioSource: redactUrlForLogs(String(audioUrl)),
-                    modalUrl: MODAL_URL,
-                    startedAt: new Date(jobStartedAt).toISOString(),
-                    finishedAt: new Date(now).toISOString(),
-                    totalMs: now - jobStartedAt,
-                    status: caughtError ? 'failed' : 'completed',
-                    timings,
-                    output: {
-                        midiKey,
-                        finalMidiUrl,
-                    },
-                    error: caughtError ? { message: caughtError.message } : undefined,
-                    events,
-                }
+        )
+        timings.r2UploadMs = Date.now() - r2UploadStartedAt
 
-                try {
-                    await fs.mkdir(LOCAL_DEBUG_DIR, { recursive: true })
-                    const artifactName = `${job.id}-${Date.now()}.json`
-                    debugArtifactLocalPath = resolve(LOCAL_DEBUG_DIR, artifactName)
-                    await fs.writeFile(debugArtifactLocalPath, JSON.stringify(artifact, null, 2), 'utf8')
-                    console.log(`[transcription] Debug artifact written: ${debugArtifactLocalPath}`)
+        finalMidiUrl = getR2PublicUrl(midiKey)
+        logEvent('info', 'r2', 'Uploaded MIDI to R2', {
+            midiKey,
+            finalMidiUrl,
+            elapsedMs: timings.r2UploadMs,
+        })
 
-                    if (TRANSCRIPTION_DEBUG_UPLOAD_TO_R2) {
-                        const debugKey = `debug/transcription/${artifactName}`
-                        await s3.send(
-                            new PutObjectCommand({
-                                Bucket: process.env.R2_BUCKET_NAME!,
-                                Key: debugKey,
-                                Body: Buffer.from(JSON.stringify(artifact, null, 2), 'utf8'),
-                                ContentType: 'application/json',
-                            })
-                        )
-                        debugArtifactR2Url = getR2PublicUrl(debugKey)
-                        console.log(`[transcription] Debug artifact uploaded: ${debugArtifactR2Url}`)
-                    }
-                } catch (artifactError) {
-                    const message = artifactError instanceof Error ? artifactError.message : String(artifactError)
-                    console.warn(`[transcription] Failed to persist debug artifact: ${message}`)
+        await job.updateProgress({ percent: 90, stage: 'Updating database...' })
+
+        // 4. Update Supabase (composer.configurations)
+        const supabaseUpdateStartedAt = Date.now()
+        const { error } = await supabase
+            .from('configurations')
+            .update({ midi_url: finalMidiUrl, updated_at: new Date().toISOString() })
+            .eq('id', configId)
+        timings.supabaseUpdateMs = Date.now() - supabaseUpdateStartedAt
+
+        if (error) {
+            throw new Error(
+                `Supabase update failed: ${error.message}`
+            )
+        }
+
+        await job.updateProgress({ percent: 100, stage: 'Complete!' })
+
+        logEvent('info', 'complete', 'Job completed — midi_url written to DB', {
+            finalMidiUrl,
+            totalMs: Date.now() - jobStartedAt,
+        })
+    } catch (error) {
+        caughtError = error instanceof Error ? error : new Error(String(error))
+        logEvent('error', 'failure', 'Job failed', {
+            message: caughtError.message,
+        })
+    } finally {
+        if (TRANSCRIPTION_DEBUG_MODE) {
+            const now = Date.now()
+            const artifact: DebugArtifact = {
+                kind: 'transcription-job-debug',
+                version: 1,
+                jobId: String(job.id),
+                queue: 'transcription',
+                configId: String(configId),
+                audioUrl: String(audioUrl),
+                audioSource: redactUrlForLogs(String(audioUrl)),
+                modalUrl: MODAL_URL,
+                startedAt: new Date(jobStartedAt).toISOString(),
+                finishedAt: new Date(now).toISOString(),
+                totalMs: now - jobStartedAt,
+                status: caughtError ? 'failed' : 'completed',
+                timings,
+                output: {
+                    midiKey,
+                    finalMidiUrl,
+                },
+                error: caughtError ? { message: caughtError.message } : undefined,
+                events,
+            }
+
+            try {
+                await fs.mkdir(LOCAL_DEBUG_DIR, { recursive: true })
+                const artifactName = `${job.id}-${Date.now()}.json`
+                debugArtifactLocalPath = resolve(LOCAL_DEBUG_DIR, artifactName)
+                await fs.writeFile(debugArtifactLocalPath, JSON.stringify(artifact, null, 2), 'utf8')
+                console.log(`[transcription] Debug artifact written: ${debugArtifactLocalPath}`)
+
+                if (TRANSCRIPTION_DEBUG_UPLOAD_TO_R2) {
+                    const debugKey = `debug/transcription/${artifactName}`
+                    await s3.send(
+                        new PutObjectCommand({
+                            Bucket: process.env.R2_BUCKET_NAME!,
+                            Key: debugKey,
+                            Body: Buffer.from(JSON.stringify(artifact, null, 2), 'utf8'),
+                            ContentType: 'application/json',
+                        })
+                    )
+                    debugArtifactR2Url = getR2PublicUrl(debugKey)
+                    console.log(`[transcription] Debug artifact uploaded: ${debugArtifactR2Url}`)
                 }
+            } catch (artifactError) {
+                const message = artifactError instanceof Error ? artifactError.message : String(artifactError)
+                console.warn(`[transcription] Failed to persist debug artifact: ${message}`)
             }
         }
 
-        if (caughtError) {
-            throw caughtError
+        // Log job completion for unified logging system
+        try {
+            const output = caughtError
+                ? null
+                : {
+                    finalMidiUrl,
+                    debugArtifactLocalPath,
+                    debugArtifactR2Url,
+                }
+            await logJobResult(
+                createJobLog('transcription', jobStartedAtMs, { configId, audioUrl }, output, caughtError)
+            )
+        } catch (logError) {
+            const message = logError instanceof Error ? logError.message : String(logError)
+            console.warn(`[transcription] Failed to log job result: ${message}`)
         }
+    }
 
-        return {
-            finalMidiUrl,
-            debugArtifactLocalPath,
-            debugArtifactR2Url,
-        }
-    },
+    if (caughtError) {
+        throw caughtError
+    }
+
+    return {
+        finalMidiUrl,
+        debugArtifactLocalPath,
+        debugArtifactR2Url,
+    }
+}
+
+const worker = new Worker(
+    'transcription',
+    (job) => processTranscriptionJob(job),
     {
         connection,
         concurrency: 2,
