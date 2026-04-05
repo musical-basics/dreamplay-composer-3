@@ -256,6 +256,17 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             ...beatAnchors.filter(b => b.time <= maxAnchorTime).map(b => ({ measure: b.measure, beat: b.beat, time: b.time }))
         ].sort((a, b) => a.time - b.time)
 
+        // Compute median gap between consecutive measure-level anchor points for outlier detection
+        const measurePoints = allPoints.filter(p => p.beat === 1 || p.beat <= 1.01)
+        const gaps: number[] = []
+        for (let i = 1; i < measurePoints.length; i++) {
+            const g = measurePoints[i].time - measurePoints[i - 1].time
+            if (g > 0) gaps.push(g)
+        }
+        gaps.sort((a, b) => a - b)
+        const medianGap = gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 2
+        const maxReasonableGap = medianGap * 2.5 // Gaps beyond this are V5 mapping errors
+
         let currentP = allPoints[0]
         let nextP = null
 
@@ -269,29 +280,43 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         let progress = 0
         let measure = currentP?.measure ?? 1
         let beat = currentP?.beat ?? 1
+
         if (nextP && nextP.time > currentP.time) {
-            progress = Math.max(0, Math.min(1, (time - currentP.time) / (nextP.time - currentP.time)))
+            const gap = nextP.time - currentP.time
+            if (gap > maxReasonableGap) {
+                // Outlier gap detected — V5 mapper error. Advance at median tempo instead.
+                const elapsed = time - currentP.time
+                const beatFraction = (currentP.beat - 1) / 4
+                const remainingInMeasure = (1 - beatFraction) * medianGap
+                if (elapsed < remainingInMeasure) {
+                    measure = currentP.measure
+                    beat = currentP.beat
+                    progress = beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure))
+                } else {
+                    const elapsedAfterMeasure = elapsed - remainingInMeasure
+                    const fullMeasures = Math.floor(elapsedAfterMeasure / medianGap)
+                    measure = currentP.measure + 1 + fullMeasures
+                    beat = 1
+                    progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * medianGap) / medianGap))
+                }
+            } else {
+                progress = Math.max(0, Math.min(1, (time - currentP.time) / gap))
+            }
         } else if (!nextP && currentP && time > currentP.time) {
-            // Past the last anchor/beat anchor — extrapolate forward
-            // Account for fractional position if last point was mid-measure (e.g. M9 B3 in 4/4 = 50% through)
-            const anchorsSorted = [...anchors].sort((a, b) => a.time - b.time)
-            const avgMeasureDur = estimateMeasureDuration(anchorsSorted)
+            // Past the last anchor — extrapolate forward at median tempo
             const elapsed = time - currentP.time
-            // Estimate how far into the measure the last beat anchor was (assume 4 beats per measure)
-            const beatFraction = (currentP.beat - 1) / 4 // e.g. beat 3 → 0.5
-            const remainingInMeasure = (1 - beatFraction) * avgMeasureDur
+            const beatFraction = (currentP.beat - 1) / 4
+            const remainingInMeasure = (1 - beatFraction) * medianGap
             if (elapsed < remainingInMeasure) {
-                // Still within the same measure — interpolate remaining portion
                 measure = currentP.measure
                 beat = currentP.beat
                 progress = beatFraction + ((1 - beatFraction) * (elapsed / remainingInMeasure))
             } else {
-                // Passed into next measure(s)
                 const elapsedAfterMeasure = elapsed - remainingInMeasure
-                const fullMeasures = Math.floor(elapsedAfterMeasure / avgMeasureDur)
+                const fullMeasures = Math.floor(elapsedAfterMeasure / medianGap)
                 measure = currentP.measure + 1 + fullMeasures
                 beat = 1
-                progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * avgMeasureDur) / avgMeasureDur))
+                progress = Math.max(0, Math.min(1, (elapsedAfterMeasure - fullMeasures * medianGap) / medianGap))
             }
         }
         if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: true }
