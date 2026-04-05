@@ -248,7 +248,9 @@ export default function AdminEditor() {
         setMidiError(null)
         const loadMidiFromUrl = async () => {
             try {
-                const response = await fetch(config.midi_url!)
+                const proxiedMidiUrl = `/api/asset?url=${encodeURIComponent(config.midi_url!)}`
+                debug.log('[Studio2] Loading MIDI through proxy', { proxiedMidiUrl, sourceUrl: config.midi_url })
+                const response = await fetch(proxiedMidiUrl, { cache: 'no-store' })
                 if (!response.ok) {
                     throw new Error(`Failed to fetch MIDI file: ${response.status} ${response.statusText}`)
                 }
@@ -257,6 +259,7 @@ export default function AdminEditor() {
                 setParsedMidi(parsed)
                 loadMidi(parsed)
                 getPlaybackManager().duration = parsed.durationSec
+                debug.log('[Studio2] MIDI loaded', { notes: parsed.notes.length, durationSec: parsed.durationSec })
             } catch (err) {
                 const msg = err instanceof Error ? err.message : 'Failed to load MIDI'
                 setMidiError(msg)
@@ -305,7 +308,8 @@ export default function AdminEditor() {
             setConfig((prev) => prev ? { ...prev, audio_url: finalFileUrl } : prev)
 
             // Hotload: create audio element immediately so playback is ready
-            const audio = new Audio(finalFileUrl)
+            const proxiedAudioUrl = `/api/asset?url=${encodeURIComponent(finalFileUrl)}`
+            const audio = new Audio(proxiedAudioUrl)
             audio.crossOrigin = 'anonymous'
             const pm = getPlaybackManager()
             pm.setAudioElement(audio)
