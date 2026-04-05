@@ -35,7 +35,7 @@ import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
 import { parseMidiFile } from '@/lib/midi/parser'
 import type { SongConfig, ParsedMidi, BeatAnchor, XMLEvent, V5MapperState } from '@/lib/types'
 import { EXPORT_QUALITY_LABELS, type ExportQualityPreset } from '@/lib/types/renderJob'
-import { fetchConfigById, updateConfigAction, generateUploadUrlAction } from '@/app/actions/config'
+import { fetchConfigById, updateConfigAction } from '@/app/actions/config'
 import { getAudioOffset } from '@/lib/engine/AudioHelpers'
 import { createClient } from '@supabase/supabase-js'
 import { debug } from '@/lib/debug'
@@ -132,6 +132,33 @@ export default function AdminEditor() {
             return fallback ? decodeURIComponent(fallback) : url
         }
     }
+
+    const uploadConfigFile = useCallback(async (file: File, fileType: 'audio' | 'xml' | 'midi') => {
+        const formData = new FormData()
+        formData.append('configId', configId)
+        formData.append('fileType', fileType)
+        formData.append('file', file)
+
+        debug.log('[Studio2] Uploading config file via server route', {
+            configId,
+            fileType,
+            fileName: file.name,
+            size: file.size,
+            contentType: file.type,
+        })
+
+        const response = await fetch('/api/config-upload', {
+            method: 'POST',
+            body: formData,
+        })
+
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+            throw new Error(payload?.error || `Upload failed: ${response.status}`)
+        }
+
+        return payload as { finalFileUrl: string }
+    }, [configId])
 
 
 
@@ -300,10 +327,7 @@ export default function AdminEditor() {
         const file = fileOrEvent instanceof File ? fileOrEvent : fileOrEvent.target.files?.[0]
         if (!file) return
         try {
-            const contentType = file.type || 'audio/wav'
-            const { uploadUrl, finalFileUrl } = await generateUploadUrlAction(configId, 'audio', file.name, contentType)
-            const res = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } })
-            if (!res.ok) throw new Error('Failed to upload file to R2')
+            const { finalFileUrl } = await uploadConfigFile(file, 'audio')
             await updateConfigAction(configId, { audio_url: finalFileUrl })
             setConfig((prev) => prev ? { ...prev, audio_url: finalFileUrl } : prev)
 
@@ -322,10 +346,7 @@ export default function AdminEditor() {
         const file = fileOrEvent instanceof File ? fileOrEvent : fileOrEvent.target.files?.[0]
         if (!file) return
         try {
-            const contentType = file.type || 'application/xml'
-            const { uploadUrl, finalFileUrl } = await generateUploadUrlAction(configId, 'xml', file.name, contentType)
-            const res = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } })
-            if (!res.ok) throw new Error('Failed to upload file to R2')
+            const { finalFileUrl } = await uploadConfigFile(file, 'xml')
             await updateConfigAction(configId, { xml_url: finalFileUrl })
             setConfig((prev) => prev ? { ...prev, xml_url: finalFileUrl } : prev)
         } catch (err) { console.error(err) }
@@ -336,10 +357,7 @@ export default function AdminEditor() {
         const file = fileOrEvent instanceof File ? fileOrEvent : fileOrEvent.target.files?.[0]
         if (!file) return
         try {
-            const contentType = file.type || 'audio/midi'
-            const { uploadUrl, finalFileUrl } = await generateUploadUrlAction(configId, 'midi', file.name, contentType)
-            const res = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } })
-            if (!res.ok) throw new Error('Failed to upload file to R2')
+            const { finalFileUrl } = await uploadConfigFile(file, 'midi')
             await updateConfigAction(configId, { midi_url: finalFileUrl })
             setConfig((prev) => prev ? { ...prev, midi_url: finalFileUrl } : prev)
 
