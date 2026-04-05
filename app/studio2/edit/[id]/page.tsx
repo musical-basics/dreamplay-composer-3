@@ -134,10 +134,7 @@ export default function AdminEditor() {
     }
 
     const uploadConfigFile = useCallback(async (file: File, fileType: 'audio' | 'xml' | 'midi') => {
-        const formData = new FormData()
-        formData.append('configId', configId)
-        formData.append('fileType', fileType)
-        formData.append('file', file)
+        const buffer = await file.arrayBuffer()
 
         debug.log('[Studio2] Uploading config file via server route', {
             configId,
@@ -149,7 +146,13 @@ export default function AdminEditor() {
 
         const response = await fetch('/api/config-upload', {
             method: 'POST',
-            body: formData,
+            headers: {
+                'Content-Type': file.type || 'application/octet-stream',
+                'x-config-id': configId,
+                'x-file-type': fileType,
+                'x-file-name': encodeURIComponent(file.name),
+            },
+            body: buffer,
         })
 
         const payload = await response.json().catch(() => null)

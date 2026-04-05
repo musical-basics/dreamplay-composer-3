@@ -13,13 +13,21 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const formData = await req.formData()
-        const configId = String(formData.get('configId') || '')
-        const fileType = String(formData.get('fileType') || '') as 'audio' | 'xml' | 'midi'
-        const file = formData.get('file')
+        const configId = req.headers.get('x-config-id') || ''
+        const fileType = (req.headers.get('x-file-type') || '') as 'audio' | 'xml' | 'midi'
+        const originalFileName = decodeURIComponent(req.headers.get('x-file-name') || 'upload.bin')
+        const contentType = req.headers.get('content-type') ||
+            (fileType === 'xml' ? 'application/xml' : fileType === 'midi' ? 'audio/midi' : 'application/octet-stream')
 
-        if (!configId || !fileType || !(file instanceof File)) {
-            return NextResponse.json({ error: 'configId, fileType, and file are required' }, { status: 400 })
+        console.log('[config-upload] request:start', {
+            configId,
+            fileType,
+            originalFileName,
+            contentType,
+        })
+
+        if (!configId || !fileType) {
+            return NextResponse.json({ error: 'x-config-id and x-file-type headers are required' }, { status: 400 })
         }
 
         const config = await getConfigById(configId, userId)
@@ -27,7 +35,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Configuration not found' }, { status: 404 })
         }
 
-        const ext = file.name.split('.').pop() || 'bin'
+        const ext = originalFileName.split('.').pop() || 'bin'
         let fileKey = ''
         if (fileType === 'audio') fileKey = `audio.${ext}`
         else if (fileType === 'xml') fileKey = 'score.xml'
@@ -35,9 +43,18 @@ export async function POST(req: NextRequest) {
         else return NextResponse.json({ error: 'Invalid fileType' }, { status: 400 })
 
         const objectKey = `users/${userId}/configs/${configId}/${fileKey}`
-        const body = Buffer.from(await file.arrayBuffer())
-        const contentType = file.type ||
-            (fileType === 'xml' ? 'application/xml' : fileType === 'midi' ? 'audio/midi' : 'application/octet-stream')
+        const arrayBuffer = await req.arrayBuffer()
+        const body = Buffer.from(arrayBuffer)
+
+        console.log('[config-upload] request:parsed', {
+            objectKey,
+            bytes: body.length,
+            contentType,
+        })
+
+        if (body.length === 0) {
+            return NextResponse.json({ error: 'Empty upload body' }, { status: 400 })
+        }
 
         await s3.send(new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME!,
@@ -46,7 +63,9 @@ export async function POST(req: NextRequest) {
             ContentType: contentType,
         }))
 
-        return NextResponse.json({ finalFileUrl: getR2PublicUrl(objectKey) })
+        const finalFileUrl = getR2PublicUrl(objectKey)
+        console.log('[config-upload] request:success', { finalFileUrl })
+        return NextResponse.json({ finalFileUrl })
     } catch (error) {
         console.error('[config-upload] Failed to upload config asset', error)
         const message = error instanceof Error ? error.message : 'Failed to upload file'
