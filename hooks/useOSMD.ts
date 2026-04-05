@@ -93,23 +93,8 @@ export function useOSMD(
 
             osmdRef.current = osmd
 
-            // Disable repeat unfolding — render each measure only once to prevent
-            // later repetition measures (e.g. M157) from overlapping with early ones (M10)
-            const sheet = osmd.Sheet
-            if (sheet?.Repetitions) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                sheet.Repetitions.forEach((rep: any) => {
-                    if (rep.UserNumberOfRepetitions !== undefined) {
-                        rep.UserNumberOfRepetitions = 1
-                    }
-                })
-                const repCount = sheet.Repetitions.length
-                if (repCount > 0) {
-                    console.log(`[OSMD] Disabled ${repCount} repetitions (set to play once)`)
-                }
-            }
-
             // Count measures
+            const sheet = osmd.Sheet
             if (sheet) {
                 setTotalMeasures(sheet.SourceMeasures?.length || 0)
             }
