@@ -643,50 +643,6 @@ export default function AdminEditor() {
         )
     }
 
-    if (showFancyLoading) {
-        return (
-            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-6 max-w-md text-center">
-                    {/* Animated logo pulse */}
-                    <div className="relative">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center shadow-2xl shadow-purple-500/30 animate-pulse">
-                            <Music className="w-8 h-8 text-white" />
-                        </div>
-                        <div className="absolute inset-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 animate-ping opacity-20" />
-                    </div>
-
-                    {/* Stage text */}
-                    <div className="space-y-2">
-                        <h2 className="text-lg font-semibold text-white">Setting up your project</h2>
-                        <p className="text-sm text-purple-300 animate-pulse font-medium">
-                            {loadingStages[loadingStage]}
-                        </p>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${((loadingStage + 1) / loadingStages.length) * 100}%` }}
-                        />
-                    </div>
-
-                    {/* Stage dots */}
-                    <div className="flex items-center gap-1.5">
-                        {loadingStages.map((_, i) => (
-                            <div
-                                key={i}
-                                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                                    i <= loadingStage ? 'bg-purple-400 scale-100' : 'bg-zinc-700 scale-75'
-                                }`}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     if (!config?.xml_url || !config?.midi_url) {
         return (
             <div className="min-h-screen bg-zinc-950 flex flex-col">
@@ -720,7 +676,43 @@ export default function AdminEditor() {
     }
 
     return (
-        <div className="h-screen flex overflow-hidden bg-zinc-950">
+        <div className="h-screen flex overflow-hidden bg-zinc-950 relative">
+            {/* Loading overlay — lets editor mount underneath while showing splash */}
+            {showFancyLoading && (
+                <div className="absolute inset-0 z-[9999] flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm transition-opacity duration-500">
+                    <div className="flex flex-col items-center gap-6 max-w-md text-center">
+                        <div className="relative">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center shadow-2xl shadow-purple-500/30 animate-pulse">
+                                <Music className="w-8 h-8 text-white" />
+                            </div>
+                            <div className="absolute inset-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 animate-ping opacity-20" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-lg font-semibold text-white">Setting up your project</h2>
+                            <p className="text-sm text-purple-300 animate-pulse font-medium">
+                                {loadingStages[loadingStage]}
+                            </p>
+                        </div>
+                        <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${((loadingStage + 1) / loadingStages.length) * 100}%` }}
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            {loadingStages.map((_, i) => (
+                                <div
+                                    key={i}
+                                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                                        i <= loadingStage ? 'bg-purple-400 scale-100' : 'bg-zinc-700 scale-75'
+                                    }`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioUpload} />
             <input ref={xmlInputRef} type="file" accept=".xml,.musicxml,.mxl" className="hidden" onChange={handleXmlUpload} />
             <input ref={midiInputRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleMidiUpload} />
