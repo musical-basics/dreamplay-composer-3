@@ -210,7 +210,10 @@ export class PlaybackManager {
 
     seek(timeSec: number): void {
         if (this._audioElement) {
-            this._audioElement.currentTime = Math.max(0, Math.min(timeSec, this._duration))
+            const maxTime = this._audioElement.duration && isFinite(this._audioElement.duration)
+                ? this._audioElement.duration
+                : (this._duration || Infinity)
+            this._audioElement.currentTime = Math.max(0, Math.min(timeSec, maxTime))
             this.notifyListeners()
             return
         }
