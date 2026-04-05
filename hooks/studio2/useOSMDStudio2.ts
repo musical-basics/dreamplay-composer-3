@@ -109,6 +109,30 @@ export function useOSMD(
                 return yPositions.size
             }
 
+            const getContentWidthPxFromGraphicSheet = () => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const graphicSheet = (osmd as any).GraphicSheet
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const measureList = (graphicSheet?.MeasureList || []) as any[]
+                const unitInPixels = Number(graphicSheet?.UnitInPixels || 10)
+                if (!Array.isArray(measureList) || measureList.length === 0) return 0
+
+                let maxRightUnit = 0
+                measureList.forEach((staves) => {
+                    if (!Array.isArray(staves)) return
+                    staves.forEach((staff) => {
+                        const pos = staff?.PositionAndShape
+                        const absX = Number(pos?.AbsolutePosition?.x)
+                        const borderRight = Number(pos?.BorderRight)
+                        if (!Number.isFinite(absX) || !Number.isFinite(borderRight)) return
+                        const rightUnit = absX + borderRight
+                        if (rightUnit > maxRightUnit) maxRightUnit = rightUnit
+                    })
+                })
+
+                return maxRightUnit > 0 ? maxRightUnit * unitInPixels : 0
+            }
+
             let trialWidth = 1000000
             let systemCount = 0
             for (let attempt = 1; attempt <= 3; attempt++) {
@@ -126,8 +150,30 @@ export function useOSMD(
                 trialWidth *= 2
             }
 
-            const finalWidth = Math.max(container.scrollWidth, container.getBoundingClientRect().width)
-            container.style.width = finalWidth > 0 ? `${Math.ceil(finalWidth) + 50}px` : originalWidth
+            const contentWidthFromGraphic = getContentWidthPxFromGraphicSheet()
+
+            // Fallback DOM-based width measurement in case GraphicSheet metrics
+            // are unavailable for a specific score/OSMD build.
+            let contentWidthFromSvg = 0
+            const containerRect = container.getBoundingClientRect()
+            const svgs = container.querySelectorAll('svg')
+            svgs.forEach((svg) => {
+                const rect = svg.getBoundingClientRect()
+                const right = rect.right - containerRect.left
+                if (right > contentWidthFromSvg) contentWidthFromSvg = right
+            })
+
+            const contentWidth = Math.max(contentWidthFromGraphic, contentWidthFromSvg)
+            const viewportBuffer = container.parentElement?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200)
+            const finalWidth = contentWidth > 0 ? (contentWidth + viewportBuffer) : (viewportBuffer + 400)
+            container.style.width = `${Math.ceil(finalWidth)}px`
+
+            console.log('[Studio2 OSMD] width finalized', {
+                contentWidthFromGraphic,
+                contentWidthFromSvg,
+                viewportBuffer,
+                finalWidth,
+            })
 
             if (systemCount > 1) {
                 console.warn('[Studio2 OSMD] wrap persists after retries', {
