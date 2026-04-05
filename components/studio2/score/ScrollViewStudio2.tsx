@@ -648,8 +648,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 const pm = getPlaybackManager()
                 const maxScrollLeft = Math.max(0, container.scrollWidth - containerClientWidth)
                 const clampedTargetScrollLeft = Math.max(0, Math.min(maxScrollLeft, targetScrollLeft))
+                const effectivePlaying = pm.isPlaying || isPlaying
 
-                if (isLocked && pm.isPlaying) {
+                if (isLocked && effectivePlaying) {
                     const delta = clampedTargetScrollLeft - container.scrollLeft
                     if (Math.abs(delta) < 250) {
                         container.scrollLeft = clampedTargetScrollLeft
@@ -673,7 +674,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                         clampedTargetScrollLeft,
                         containerWidth: containerClientWidth,
                         isLocked,
-                        isPlaying: pm.isPlaying,
+                        isPlayingPm: pm.isPlaying,
+                        isPlayingStore: isPlaying,
+                        effectivePlaying,
                     })
                     lastSyncLogMsRef.current = now
                 }
@@ -853,7 +856,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             }
 
         } catch { /* ignore */ }
-    }, [findCurrentPosition, isLoaded, revealMode, updateMeasureVisibility, popEffect, jumpEffect, glowEffect, darkMode, highlightNote, cursorPosition, isLocked, curtainLookahead, showCursor, isAdmin, onMeasureChange, resetNoteVisualEffects, parsedMidi, dynamicColor, releaseTightness, scoreZoomX])
+    }, [findCurrentPosition, isLoaded, revealMode, updateMeasureVisibility, popEffect, jumpEffect, glowEffect, darkMode, highlightNote, cursorPosition, isLocked, curtainLookahead, showCursor, isAdmin, onMeasureChange, resetNoteVisualEffects, parsedMidi, dynamicColor, releaseTightness, scoreZoomX, isPlaying])
 
     useEffect(() => {
         if (!isLoaded) return
