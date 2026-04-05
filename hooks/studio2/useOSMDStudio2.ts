@@ -164,14 +164,12 @@ export function useOSMD(
             })
 
             const contentWidth = Math.max(contentWidthFromGraphic, contentWidthFromSvg)
-            const viewportBuffer = container.parentElement?.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200)
-            const finalWidth = contentWidth > 0 ? (contentWidth + viewportBuffer) : (viewportBuffer + 400)
+            const finalWidth = contentWidth > 0 ? contentWidth : 1200
             container.style.width = `${Math.ceil(finalWidth)}px`
 
             console.log('[Studio2 OSMD] width finalized', {
                 contentWidthFromGraphic,
                 contentWidthFromSvg,
-                viewportBuffer,
                 finalWidth,
             })
 
