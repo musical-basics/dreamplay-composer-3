@@ -213,7 +213,10 @@ export class PlaybackManager {
             const maxTime = this._audioElement.duration && isFinite(this._audioElement.duration)
                 ? this._audioElement.duration
                 : (this._duration || Infinity)
-            this._audioElement.currentTime = Math.max(0, Math.min(timeSec, maxTime))
+            const clampedTime = Math.max(0, Math.min(timeSec, maxTime))
+            console.log(`[PM.seek] requested=${timeSec.toFixed(3)} clamped=${clampedTime.toFixed(3)} maxTime=${maxTime} audioDur=${this._audioElement.duration} _duration=${this._duration} readyState=${this._audioElement.readyState} currentTime=${this._audioElement.currentTime}`)
+            this._audioElement.currentTime = clampedTime
+            console.log(`[PM.seek] after set: currentTime=${this._audioElement.currentTime}`)
             this.notifyListeners()
             return
         }
