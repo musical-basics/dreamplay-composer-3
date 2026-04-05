@@ -73,23 +73,88 @@ export function useOSMD(
             osmd.EngravingRules.NewSystemAtXMLNewSystemAttribute = false
             osmd.EngravingRules.NewPageAtXMLNewPageAttribute = false
             osmd.EngravingRules.NewSystemAtXMLNewPageAttribute = false
+            osmd.EngravingRules.RenderXMeasuresPerLineAkaSystem = 0
+            osmd.EngravingRules.SheetMaximumWidth = Number.MAX_SAFE_INTEGER
 
-            // Render in an oversized container first to keep everything on one
-            // horizontal staffline, then shrink to the real rendered width.
+            // Also apply via setOptions for consistency with some OSMD builds.
+            osmd.setOptions({
+                autoResize: false,
+                renderSingleHorizontalStaffline: true,
+                newSystemFromXML: false,
+                newPageFromXML: false,
+                newSystemFromNewPageInXML: false,
+            })
+
+            // Render in progressively wider containers until OSMD settles to
+            // a single horizontal system (or we hit a conservative cap).
             const container = containerRef.current!
-            const originalWidth = container.style.width
-            container.style.width = '999999px'
-            osmd.render()
+            container.style.maxWidth = 'none'
+            container.style.display = 'block'
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const getSystemCount = () => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const measureList = ((osmd as any).GraphicSheet?.MeasureList || []) as any[]
+                if (!Array.isArray(measureList) || measureList.length === 0) return 0
+                const yPositions = new Set<number>()
+                measureList.forEach((staves) => {
+                    const first = Array.isArray(staves) ? staves[0] : undefined
+                    const y = first?.PositionAndShape?.AbsolutePosition?.y
+                    if (typeof y === 'number' && Number.isFinite(y)) {
+                        yPositions.add(Math.round(y))
+                    }
+                })
+                return yPositions.size
+            }
+
+            let trialWidth = 1000000
+            let systemCount = 0
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                container.style.width = `${trialWidth}px`
+                osmd.render()
+                systemCount = getSystemCount()
+                console.log('[OSMD] render attempt', { attempt, trialWidth, systemCount })
+                if (systemCount <= 1) break
+                trialWidth *= 2
+            }
+
+            // Measure final content width from GraphicSheet
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const graphicSheet = (osmd as any).GraphicSheet
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const measureList = (graphicSheet?.MeasureList || []) as any[]
+            const unitInPixels = Number(graphicSheet?.UnitInPixels || 10)
+            let maxRightUnit = 0
+            measureList.forEach((staves: any[]) => {
+                if (!Array.isArray(staves)) return
+                staves.forEach((staff: any) => {
+                    const pos = staff?.PositionAndShape
+                    const absX = Number(pos?.AbsolutePosition?.x)
+                    const borderRight = Number(pos?.BorderRight)
+                    if (Number.isFinite(absX) && Number.isFinite(borderRight)) {
+                        const rightUnit = absX + borderRight
+                        if (rightUnit > maxRightUnit) maxRightUnit = rightUnit
+                    }
+                })
+            })
+            const contentWidthFromGraphic = maxRightUnit > 0 ? maxRightUnit * unitInPixels : 0
+
+            // Fallback: DOM-based measurement
+            let contentWidthFromSvg = 0
+            const containerRect = container.getBoundingClientRect()
             const svgs = container.querySelectorAll('svg')
-            let maxRight = 0
             svgs.forEach(svg => {
                 const rect = svg.getBoundingClientRect()
-                const containerRect = container.getBoundingClientRect()
                 const right = rect.right - containerRect.left
-                if (right > maxRight) maxRight = right
+                if (right > contentWidthFromSvg) contentWidthFromSvg = right
             })
-            container.style.width = maxRight > 0 ? `${Math.ceil(maxRight) + 50}px` : originalWidth
+
+            const contentWidth = Math.max(contentWidthFromGraphic, contentWidthFromSvg)
+            container.style.width = contentWidth > 0 ? `${Math.ceil(contentWidth)}px` : '1200px'
+
+            if (systemCount > 1) {
+                console.warn('[OSMD] wrap persists after retries', { systemCount })
+            }
 
             osmdRef.current = osmd
 
