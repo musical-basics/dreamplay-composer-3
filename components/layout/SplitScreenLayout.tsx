@@ -66,11 +66,28 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
         // Step 14: In studio mode, skip audio element entirely
         if (isStudioMode || !audioUrl) return
 
-        const proxiedAudioUrl = `/api/asset?url=${encodeURIComponent(audioUrl)}`
-        const audio = new Audio(proxiedAudioUrl)
+        let blobUrl: string | null = null
+        const audio = new Audio()
         audio.crossOrigin = 'anonymous'
-        audio.preload = 'metadata'
+        audio.preload = 'auto'
         audioRef.current = audio
+
+        // Fetch audio as blob so browser can seek freely (proxy doesn't support range requests)
+        const proxiedAudioUrl = `/api/asset?url=${encodeURIComponent(audioUrl)}`
+        fetch(proxiedAudioUrl)
+            .then(res => {
+                if (!res.ok) throw new Error(`Audio fetch failed: ${res.status}`)
+                return res.blob()
+            })
+            .then(blob => {
+                blobUrl = URL.createObjectURL(blob)
+                audio.src = blobUrl
+                debug.log('[SplitScreen] Audio loaded as blob', { size: blob.size, type: blob.type })
+            })
+            .catch(err => {
+                console.error('[SplitScreen] Blob fetch failed, falling back to proxy URL', err)
+                audio.src = proxiedAudioUrl
+            })
 
         const handleLoadedMetadata = () => {
             debug.log('[SplitScreen] Audio metadata loaded', {
@@ -106,6 +123,7 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
             audio.pause()
             audio.removeAttribute('src')
             audio.load()
+            if (blobUrl) URL.revokeObjectURL(blobUrl)
             pm.setAudioElement(null)
             audioRef.current = null
         }
