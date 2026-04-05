@@ -168,8 +168,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         })
     }, [scoreZoomX])
 
-    // Throttle M10 debug logs to once per 500ms
+    // Throttle M10 debug logs to once per 500ms (separate refs so both fire)
     const lastM10LogRef = useRef(0)
+    const lastM10CursorLogRef = useRef(0)
 
     const findCurrentPosition = useCallback((time: number) => {
         // Helper: compute average measure duration from sorted anchors for extrapolation
@@ -652,9 +653,10 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             // M10 DEBUG: log cursor update state
             if (measure >= 9 && measure <= 11) {
                 const now = performance.now()
-                if (now - lastM10LogRef.current > 500) {
-                    lastM10LogRef.current = now
+                if (now - lastM10CursorLogRef.current > 500) {
+                    lastM10CursorLogRef.current = now
                     const pm = getPlaybackManager()
+                    const ae = (pm as any)._audioElement as HTMLAudioElement | null
                     console.log('[M10 DEBUG updateCursor]', {
                         audioTime,
                         measure, beat, progress, isBeatInterpolation,
@@ -664,12 +666,16 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                         pmIsPlaying: pm.isPlaying,
                         pmDuration: pm.duration,
                         pmTime: pm.getTime(),
-                        audioElementTime: (pm as any)._audioElement?.currentTime,
-                        audioElementPaused: (pm as any)._audioElement?.paused,
-                        audioElementDuration: (pm as any)._audioElement?.duration,
-                        audioElementReadyState: (pm as any)._audioElement?.readyState,
-                        audioElementNetworkState: (pm as any)._audioElement?.networkState,
-                        audioElementError: (pm as any)._audioElement?.error,
+                        audioElementTime: ae?.currentTime,
+                        audioElementPaused: ae?.paused,
+                        audioElementEnded: ae?.ended,
+                        audioElementDuration: ae?.duration,
+                        audioElementReadyState: ae?.readyState,
+                        audioElementNetworkState: ae?.networkState,
+                        audioElementError: ae?.error,
+                        audioElementBuffered: ae && ae.buffered.length > 0
+                            ? Array.from({ length: ae.buffered.length }, (_, i) => `${ae.buffered.start(i).toFixed(2)}-${ae.buffered.end(i).toFixed(2)}`).join(', ')
+                            : 'none',
                     })
                 }
             }
