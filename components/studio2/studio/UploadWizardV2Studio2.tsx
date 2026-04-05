@@ -61,22 +61,28 @@ export function UploadWizardV2({
         { pct: 52, msg: 'Analyzing sustain pedal patterns...' },
         { pct: 58, msg: 'Refining velocity dynamics...' },
         { pct: 63, msg: 'Assembling MIDI sequence...' },
+        { pct: 68, msg: 'Resolving chord voicings...' },
+        { pct: 73, msg: 'Aligning note timings to grid...' },
+        { pct: 78, msg: 'Applying tempo corrections...' },
+        { pct: 83, msg: 'Finalizing MIDI output...' },
+        { pct: 87, msg: 'Preparing results for download...' },
     ])
     const nextFakeIdx = useRef(0)
 
-    // Smooth fake progress: ticks from 10% → 65% over ~30s while GPU is working
+    // Smooth fake progress: ticks from 10% → 88% over ~5min while GPU is working
     useEffect(() => {
         if (!transcribing) { setDisplayPercent(0); nextFakeIdx.current = 0; return }
 
         const interval = setInterval(() => {
             setDisplayPercent((prev) => {
                 const realPct = realProgress?.percent ?? 0
-                // If real progress jumped ahead (e.g. 70%), snap to it
+                // If real progress jumped ahead, snap to it
                 if (realPct > prev) return realPct
-                // Otherwise, slowly creep up but cap at 65% (GPU inference zone)
-                if (prev < 65) {
-                    const next = prev + 0.8
-                    // Emit fake log at milestones
+                // Creep up slowly but cap at 88% — real completion snaps to 100
+                if (prev < 88) {
+                    // Slow down significantly after 65% (long GPU crunch zone)
+                    const step = prev < 65 ? 0.8 : 0.15
+                    const next = prev + step
                     const stages = fakeStagesRef.current
                     const idx = nextFakeIdx.current
                     if (idx < stages.length && next >= stages[idx].pct) {
