@@ -111,3 +111,33 @@ This fixes the architecture instead of layering more browser-side exceptions on 
 - `hooks/studio2/useOSMDStudio2.ts`
 - `app/studio2/edit/[id]/page.tsx`
 - `components/studio2/layout/SplitScreenLayoutStudio2.tsx`
+
+---
+
+# Follow-up Bug: AutoMap fails in `getAudioOffset` with `Failed to fetch`
+
+**Date:** 2026-04-05
+
+## Symptom
+- During final setup (after file uploads), pressing AI mapping/transcribe flow could fail with:
+    - `Console TypeError: Failed to fetch`
+    - stack pointing to `getAudioOffset` inside `handleAutoMap`.
+
+## Root Cause
+The upload/playback/loading paths had already been moved to same-origin proxy routes, but `getAudioOffset()` still fetched `audio_url` directly from the remote asset URL in the browser.
+
+On localhost, that direct fetch can fail for the same reasons as earlier asset-loading regressions.
+
+## Final Solution
+- Route audio offset analysis through the same internal proxy path used by playback and MIDI loading:
+    - `fetch('/api/asset?url=...')` instead of `fetch(audioUrl)`.
+- Added explicit diagnostics for:
+    - source URL and proxied URL
+    - fetch response status
+    - decoded buffer metadata (sample rate, frame count, duration)
+
+## Why it worked
+This removed the last direct browser dependency on remote asset URLs in the mapping flow, so AutoMap now uses the same stable same-origin fetch architecture as other editor subsystems.
+
+## File Changed
+- `lib/engine/AudioHelpers.ts`
