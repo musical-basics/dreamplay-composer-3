@@ -498,12 +498,15 @@ export default function AdminEditor() {
     const handleScoreLoaded = useCallback((total: number, counts: Map<number, number>, events?: XMLEvent[]) => {
         setTotalMeasures(total)
         setNoteCounts(counts)
-        // Persist xmlEvents in ref on FIRST load — ref survives OSMD re-renders
-        if (events && events.length > 0 && xmlEventsRef.current.length === 0) {
-            xmlEventsRef.current = events
-            setXmlEvents(events)
-            const fermataCount = events.filter(e => e.hasFermata).length
-            debug.log(`[EditPage] Locked ${events.length} xmlEvents into ref (${fermataCount} fermatas)`)
+        // Persist xmlEvents in ref — update whenever new events arrive with different content
+        if (events && events.length > 0) {
+            const staleCount = xmlEventsRef.current.length
+            if (staleCount === 0 || staleCount !== events.length) {
+                xmlEventsRef.current = events
+                setXmlEvents(events)
+                const fermataCount = events.filter(e => e.hasFermata).length
+                debug.log(`[EditPage] ${staleCount > 0 ? 'Updated' : 'Locked'} ${events.length} xmlEvents into ref (${fermataCount} fermatas)${staleCount > 0 ? ` — replaced ${staleCount} stale events` : ''}`)
+            }
         }
     }, [])
 

@@ -188,7 +188,15 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         console.log('[ANCHOR DUMP] Beat anchors count:', beatAnchors.length, '| first 10:', beatAnchors.slice(0, 10).map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
         console.log('[ANCHOR DUMP] Beat anchors M8-M12:', m9BeatAnchors.map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
         console.log('[ANCHOR DUMP] Beat anchors (last 5):', [...beatAnchors].sort((a, b) => a.time - b.time).slice(-5).map(b => `M${b.measure}B${b.beat} t=${b.time.toFixed(3)}`).join(' | '))
-    }, [anchors, beatAnchors])
+        const audioDur = duration > 0 ? duration : Infinity
+        const maxT = audioDur * 1.05
+        const survivingAnchors = sortedAnchors.filter(a => a.time <= maxT)
+        const survivingBeatAnchors = beatAnchors.filter(b => b.time <= maxT)
+        console.log(`[ANCHOR DUMP] Duration filter: audioDur=${audioDur.toFixed(1)}s, maxT=${maxT.toFixed(1)}s → ${survivingAnchors.length}/${sortedAnchors.length} anchors survive, ${survivingBeatAnchors.length}/${beatAnchors.length} beatAnchors survive`)
+        if (survivingAnchors.length > 0) {
+            console.log('[ANCHOR DUMP] Last surviving anchor:', `M${survivingAnchors[survivingAnchors.length-1].measure} t=${survivingAnchors[survivingAnchors.length-1].time.toFixed(3)}`)
+        }
+    }, [anchors, beatAnchors, duration])
 
     const findCurrentPosition = useCallback((time: number) => {
         // Helper: compute average measure duration from sorted anchors for extrapolation
