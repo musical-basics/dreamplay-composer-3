@@ -27,12 +27,26 @@ Missing beat anchors: M9 B2, M9 B4, M10 B1, M10 B2, M10 B3 — the mapper failed
 - By M25-M27, runaway detection fires: `Runaway detected (10/10 bad). Auto-recovering without pause at M27 B4.`
 - After the MIDI runs out (~59s), dead-reckoning continues using AQNTL=0.5s, producing anchor times up to 328s for M160
 
-### Root cause (UNRESOLVED)
-The V5 mapper fails to match MIDI notes at M10 for this specific piece. This could be:
-1. The search window is too narrow at M9-M10
-2. The XML pitches at M10 don't align with the MIDI pitches at the expected time
-3. The AQNTL estimate drifts, causing the search window to miss the correct notes
-4. Some interaction between the two piano staves creating ambiguous pitch matches
+### Root cause (FIXED — 2026-04-05)
+The `stepV5()` stray-note rejection path advanced `midiCursor` past rejected chord clusters
+even though `currentEventIndex` was NOT advanced (i.e., the same XML event was being retried).
+This permanently moved the MIDI scan cursor past the correct notes for subsequent beats.
+
+Specifically:
+- M9 B2 partial chord → stray rejection → `midiCursor` advances past notes at t≈16.0s  
+- M9 B4 stray rejection → `midiCursor` advances past notes at t≈17.0s  
+- M10 B1 scan window is `[15.4s, 17.4s]` (correct!) but `startIndex = midiCursor` is now past t=17.4s  
+- `scanWindow()` and `findContinuityResyncMatch()` both start from t=20.3s → finds wrong notes
+
+### Fix
+Added `straySkipCursor?: number` to `V5MapperState`. In the stray rejection retry path,
+only `straySkipCursor` is advanced (not `midiCursor`). All `scanWindow()`,
+`findBestChordMatchInWindow()`, and `findContinuityResyncMatch()` calls now use
+`scanStartIndex = max(midiCursor, straySkipCursor ?? 0)` as their start index.
+`straySkipCursor` is reset to `undefined` on every path that advances `currentEventIndex`.
+
+This means: stray note clusters are skipped within a retry loop, but the primary `midiCursor`
+position is preserved so it can look backward into the correct time window on the next attempt.
 
 ### What was tried
 - Filtering anchor points beyond audio duration (helps with dead-reckoned junk past 59s, but M10 at 20.3s is within audio duration)
@@ -158,18 +172,17 @@ The MusicXML does NOT have repeat signs. All 160 measures are unique. The wrappi
 
 ## What Still Needs Fixing
 
-### 1. V5 mapper fails at M10 for this piece (HIGH PRIORITY)
-The mapper consistently places M10 at t=20.3 instead of ~17.4. The outlier gap detection in `findCurrentPosition` is a workaround but the mapper itself should produce correct anchors. Need to investigate:
-- What MIDI pitches exist at t=16.4-17.5 (where M10 should be)
-- What XML pitches M10 expects
-- Why the search window misses the correct match
-- Whether the AQNTL drift is causing the window to be in the wrong position
+### 1. V5 mapper fails at M10 for this piece — **FIXED 2026-04-05**
+Root cause was `straySkipCursor` bug (see above). Fix is in `lib/engine/AutoMapperV5.ts` +
+`lib/types.ts`. Re-map "Sunflowers" and verify M10 anchor lands at ~17.3-17.5s.
 
 ### 2. Dead-reckoned anchors past MIDI duration
-After M25-M27, the mapper runs out of MIDI notes but keeps dead-reckoning using AQNTL=0.5s, producing anchor times up to 328s. A stop condition was added (`state.midiCursor >= sorted.length && state.lastAnchorTime > midiDuration`) but it may not trigger correctly in all cases since `midiCursor` can still be within range while `lastAnchorTime` has diverged.
+After M25-M27, the mapper runs out of MIDI notes but keeps dead-reckoning using AQNTL=0.5s,
+producing anchor times up to 328s. A stop condition was added but it may not trigger correctly
+in all cases since `midiCursor` can still be within range while `lastAnchorTime` has diverged.
 
-### 3. Diagnostic logging should be removed
-Multiple debug logs were added during investigation and should be cleaned up once the issues are resolved:
+### 3. Diagnostic logging should be removed after M10 verification
+Multiple debug logs were added during investigation and should be cleaned up once M10 fix is confirmed:
 - `[M10 DEBUG findPos]` and `[M10 DEBUG updateCursor]` in ScrollViewStudio2.tsx
 - `[ANCHOR DUMP]` in ScrollViewStudio2.tsx
 - `[ScoreClick]` and `[ScrollContainer click]` in ScrollViewStudio2.tsx
@@ -177,4 +190,6 @@ Multiple debug logs were added during investigation and should be cleaned up onc
 - `[Studio2 Audio] PAUSE/STALLED/WAITING/SUSPEND/ENDED` in SplitScreenLayoutStudio2.tsx
 
 ### 4. Proxy should support range requests (NICE TO HAVE)
-The asset proxy (`app/api/asset/route.ts`) doesn't support range requests. The blob URL workaround handles this for now, but proper range request support would reduce memory usage (no need to hold entire file as blob).
+The asset proxy (`app/api/asset/route.ts`) doesn't support range requests. The blob URL
+workaround handles this for now, but proper range request support would reduce memory usage
+(no need to hold entire file as blob).

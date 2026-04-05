@@ -15,8 +15,8 @@ export { getAudioOffset } from './AudioHelpers'
 
 type Outcome = 'match' | 'dead-reckon' | 'stray'
 const V5_VERBOSE = true
-const DEFAULT_TRACE_MIN_MEASURE = 25
-const DEFAULT_TRACE_MAX_MEASURE = 27
+const DEFAULT_TRACE_MIN_MEASURE = 8
+const DEFAULT_TRACE_MAX_MEASURE = 12
 let lastRunawayWarnKey = ''
 
 function getTraceRange(): { min: number; max: number } {
@@ -343,6 +343,7 @@ export function stepV5(
         return {
             ...state,
             currentEventIndex: state.currentEventIndex + 1,
+            straySkipCursor: undefined, // Reset on event advancement
             status: state.currentEventIndex + 1 >= xmlEvents.length ? 'done' : 'running',
         }
     }
@@ -354,11 +355,16 @@ export function stepV5(
     const searchEnd = state.lastAnchorTime + expectedDelta + buffer
     const preserveTempoEstimate = beatsElapsed < 1 || (xmlEvent.smallestDuration ?? 1) <= 0.25
 
+    // Use the higher of midiCursor or straySkipCursor as the scan start.
+    // straySkipCursor advances past rejected stray clusters during retry loops
+    // WITHOUT permanently moving midiCursor past valid notes.
+    const scanStartIndex = Math.max(state.midiCursor, state.straySkipCursor ?? 0)
+
     v5LogFor(xmlEvent,
         `[V5 STEP] idx=${state.currentEventIndex} M${xmlEvent.measure} B${xmlEvent.beat} ` +
         `expPitches=[${xmlEvent.pitches.join(',')}] beatsElapsed=${beatsElapsed.toFixed(3)} ` +
         `aqntl=${state.aqntl.toFixed(3)} window=[${searchStart.toFixed(3)},${searchEnd.toFixed(3)}] ` +
-        `cursor=${state.midiCursor} misses=${state.consecutiveMisses}`
+        `cursor=${state.midiCursor} strayCursor=${state.straySkipCursor ?? 'none'} scanStart=${scanStartIndex} misses=${state.consecutiveMisses}`
     )
     v5LogFor(xmlEvent, `[V5 STEP DETAIL] expectedTime=${expectedTime.toFixed(3)} preserveTempo=${preserveTempoEstimate} afterFermata=${!!state.afterFermata}`)
 
@@ -430,11 +436,11 @@ export function stepV5(
     // If 3+ consecutive non-matches (dead-reckons/strays), switch to fresh scanning.
     // This handles fermatas, ritardandos, and any timing disruption dynamically.
     if (state.consecutiveMisses >= 3) {
-        v5LogFor(xmlEvent, `[V5] 🔍 Fresh scan activated (${state.consecutiveMisses} consecutive misses). Looking for M${xmlEvent.measure} B${xmlEvent.beat} pitches=[${xmlEvent.pitches}] from midiCursor=${state.midiCursor}`)
+        v5LogFor(xmlEvent, `[V5] 🔍 Fresh scan activated (${state.consecutiveMisses} consecutive misses). Looking for M${xmlEvent.measure} B${xmlEvent.beat} pitches=[${xmlEvent.pitches}] from scanStart=${scanStartIndex}`)
         const freshResync = findContinuityResyncMatch(
             xmlEvent.pitches,
             sorted,
-            state.midiCursor,
+            scanStartIndex,
             expectedTime,
             state.lastAnchorTime,
             expectedDelta,
@@ -466,6 +472,7 @@ export function stepV5(
                 ghostAnchor: null,
                 aqntl: state.aqntl, // Don't update AQNTL from disrupted timing
                 midiCursor: chord.lastIndex + 1,
+                straySkipCursor: undefined, // Reset: we found a real match
                 currentEventIndex: nextIndex,
                 lastAnchorTime: anchorTime,
                 lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -480,7 +487,7 @@ export function stepV5(
     }
 
     // Scan for pitch matches in window
-    const matches = scanWindow(xmlEvent.pitches, sorted, state.midiCursor, searchStart, searchEnd)
+    const matches = scanWindow(xmlEvent.pitches, sorted, scanStartIndex, searchStart, searchEnd)
     v5LogFor(xmlEvent, `[V5 WINDOW] matches=${matches.length} sample=${previewCandidates(matches)}`)
 
     if (matches.length > 0) {
@@ -490,7 +497,7 @@ export function stepV5(
         const bestWindowMatch = findBestChordMatchInWindow(
             xmlEvent.pitches,
             sorted,
-            state.midiCursor,
+            scanStartIndex,
             searchStart,
             searchEnd,
             chordThreshold,
@@ -542,6 +549,7 @@ export function stepV5(
                     ghostAnchor: null,
                     aqntl: state.aqntl,
                     midiCursor: chord.lastIndex + 1,
+                    straySkipCursor: undefined, // Reset: partial-chord recovery counts as advancement
                     currentEventIndex: nextIndex,
                     lastAnchorTime: recoveryTime,
                     lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -573,6 +581,7 @@ export function stepV5(
                     recentOutcomes: outcomes,
                     ghostAnchor: null,
                     consecutiveMisses: 0,
+                    straySkipCursor: undefined, // Reset: runaway recovery advances event
                     currentEventIndex: recoveryNextIndex,
                     lastAnchorTime: ghostTime,
                     lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -580,11 +589,17 @@ export function stepV5(
                 }
             }
 
+            // *** THE KEY FIX ***
+            // Advance straySkipCursor (not midiCursor) past this stray cluster.
+            // midiCursor stays at its current position so the next scan attempt
+            // for this same XML event can still find valid notes within the correct
+            // time window. straySkipCursor ensures we don't re-examine this stray.
             return {
                 ...state,
                 recentOutcomes: outcomes,
                 consecutiveMisses: state.consecutiveMisses + 1,
-                midiCursor: chord.lastIndex + 1,
+                straySkipCursor: Math.max(state.straySkipCursor ?? 0, chord.lastIndex + 1),
+                // midiCursor intentionally NOT advanced — re-try same XML event from here
                 // Don't advance currentEventIndex — re-try this same XML event
             }
         }
@@ -622,6 +637,7 @@ export function stepV5(
             ghostAnchor: null,
             aqntl: newAqntl,
             midiCursor: chord.lastIndex + 1,
+            straySkipCursor: undefined, // Reset: confirmed match, clean slate for next event
             currentEventIndex: nextIndex,
             lastAnchorTime: anchorTime,
             lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -636,7 +652,7 @@ export function stepV5(
         const wideBuffer = expectedDelta * 0.50
         const wideStart = state.lastAnchorTime - wideBuffer * 0.5
         const wideEnd = state.lastAnchorTime + expectedDelta + wideBuffer
-        const wideMatches = scanWindow(xmlEvent.pitches, sorted, state.midiCursor, wideStart, wideEnd)
+        const wideMatches = scanWindow(xmlEvent.pitches, sorted, scanStartIndex, wideStart, wideEnd)
         v5LogFor(xmlEvent, `[V5 WIDE] window=[${wideStart.toFixed(3)},${wideEnd.toFixed(3)}] matches=${wideMatches.length} sample=${previewCandidates(wideMatches)}`)
 
         if (wideMatches.length > 0) {
@@ -645,7 +661,7 @@ export function stepV5(
             const bestWideMatch = findBestChordMatchInWindow(
                 xmlEvent.pitches,
                 sorted,
-                state.midiCursor,
+                scanStartIndex,
                 wideStart,
                 wideEnd,
                 chordThreshold,
@@ -684,10 +700,11 @@ export function stepV5(
                 ghostAnchor: null,
                 aqntl: newAqntl,
                 midiCursor: chord.lastIndex + 1,
+                straySkipCursor: undefined, // Reset: wide-scan match, clean slate
                 currentEventIndex: nextIndex,
                 lastAnchorTime: anchorTime,
                 lastAnchorGlobalBeat: xmlEvent.globalBeat,
-                afterFermata: xmlEvent.hasFermata || false, // ← THIS WAS MISSING!
+                afterFermata: xmlEvent.hasFermata || false,
                 consecutiveMisses: 0,
                 recentOutcomes: pushOutcome(state.recentOutcomes, 'match'),
                 status: nextIndex >= xmlEvents.length ? 'done' : 'running',
@@ -701,7 +718,7 @@ export function stepV5(
         const freshResync = findContinuityResyncMatch(
             xmlEvent.pitches,
             sorted,
-            state.midiCursor,
+            scanStartIndex,
             expectedTime,
             state.lastAnchorTime,
             expectedDelta,
@@ -734,6 +751,7 @@ export function stepV5(
                 ghostAnchor: null,
                 aqntl: state.aqntl, // Don't update AQNTL from out-of-window timing
                 midiCursor: chord.lastIndex + 1,
+                straySkipCursor: undefined, // Reset: continuity-resync match found
                 currentEventIndex: nextIndex,
                 lastAnchorTime: anchorTime,
                 lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -772,6 +790,7 @@ export function stepV5(
                         recentOutcomes: outcomes,
                         ghostAnchor: null,
                         consecutiveMisses: 0,
+                        straySkipCursor: undefined, // Reset: runaway dead-reckon recovery advances event
                         currentEventIndex: nextIndex,
                         lastAnchorTime: deadReckonTime,
                         lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -792,6 +811,7 @@ export function stepV5(
                     ghostAnchor: null,
                     recentOutcomes: outcomes,
                     consecutiveMisses: state.consecutiveMisses + 1,
+                    straySkipCursor: undefined, // Reset: normal dead-reckon advances event
                     currentEventIndex: nextIndex,
                     lastAnchorTime: deadReckonTime,
                     lastAnchorGlobalBeat: xmlEvent.globalBeat,
@@ -817,6 +837,7 @@ export function stepV5(
             ghostAnchor: null,
             recentOutcomes: pushOutcome(state.recentOutcomes, 'dead-reckon'),
             consecutiveMisses: state.consecutiveMisses + 1,
+            straySkipCursor: undefined, // Reset: large-gap fallback advances event
             currentEventIndex: fallbackNextIndex,
             lastAnchorTime: deadReckonTime,
             lastAnchorGlobalBeat: xmlEvent.globalBeat,

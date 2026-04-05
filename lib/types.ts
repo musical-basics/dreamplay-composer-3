@@ -89,6 +89,13 @@ export interface V5MapperState {
     consecutiveMisses: number
     /** Whether we just passed a fermata beat and need fresh scanning */
     afterFermata?: boolean
+    /**
+     * Secondary scan cursor used during stray-note rejection retry loops.
+     * Advances past rejected stray clusters WITHOUT permanently moving midiCursor,
+     * so subsequent scans for the same XML event can still find valid notes
+     * in the correct time window. Resets to undefined when currentEventIndex advances.
+     */
+    straySkipCursor?: number
 }
 
 /** A full song configuration (stored in DB) */
