@@ -54,28 +54,19 @@ export function useOSMD(
 
             // Fetch the file ourselves to detect format by content,
             // since MXL files may be stored with a .xml extension.
-            console.log('[OSMD] Fetching score from URL:', url)
             const response = await fetch(url)
-            console.log('[OSMD] Fetch response status:', response.status, 'content-type:', response.headers.get('content-type'))
             if (!response.ok) throw new Error(`Failed to fetch score: ${response.status}`)
             const buffer = await response.arrayBuffer()
             const bytes = new Uint8Array(buffer)
-            console.log('[OSMD] Fetched bytes:', bytes.length, 'first 4 bytes:', Array.from(bytes.slice(0, 4)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '))
 
             // ZIP magic bytes (0x50 0x4B) indicate MXL (compressed MusicXML)
             const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4B
-            console.log('[OSMD] Detected format:', isZip ? 'MXL (ZIP)' : 'XML text')
-
             if (isZip) {
-                // OSMD accepts Blob for MXL — wraps ArrayBuffer so JSZip can decompress
                 const blob = new Blob([buffer], { type: 'application/vnd.recordare.musicxml' })
-                console.log('[OSMD] Loading as Blob, size:', blob.size)
                 await osmd.load(blob)
             } else {
                 const decoder = new TextDecoder()
-                const text = decoder.decode(buffer)
-                console.log('[OSMD] Loading as text, length:', text.length, 'starts with:', text.slice(0, 200))
-                await osmd.load(text)
+                await osmd.load(decoder.decode(buffer))
             }
             osmd.render()
 
