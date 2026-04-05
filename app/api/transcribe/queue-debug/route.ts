@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getTranscriptionQueue } from '@/lib/queue'
 
-const STALE_WAIT_MS = Number(process.env.TRANSCRIPTION_STALE_WAIT_MS || 2 * 60 * 1000)
+const STALE_WAIT_MS = Number(process.env.TRANSCRIPTION_STALE_WAIT_MS || 25 * 1000)
 
 /**
  * GET /api/transcribe/queue-debug
