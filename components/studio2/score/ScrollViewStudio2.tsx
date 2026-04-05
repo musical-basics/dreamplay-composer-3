@@ -169,6 +169,14 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
     }, [scoreZoomX])
 
     const findCurrentPosition = useCallback((time: number) => {
+        // Helper: compute average measure duration from sorted anchors for extrapolation
+        const estimateMeasureDuration = (sorted: { measure: number; time: number }[]): number => {
+            if (sorted.length < 2) return 2 // fallback: 2 seconds per measure
+            const totalTime = sorted[sorted.length - 1].time - sorted[0].time
+            const totalMeasureSpan = sorted[sorted.length - 1].measure - sorted[0].measure
+            return totalMeasureSpan > 0 ? totalTime / totalMeasureSpan : 2
+        }
+
         if (!beatAnchors || beatAnchors.length === 0) {
             if (anchors.length === 0) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: false }
             const sorted = [...anchors].sort((a, b) => a.time - b.time)
@@ -182,7 +190,16 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 } else break
             }
             let progress = 0
-            if (endT !== Infinity && endT > startT) progress = Math.max(0, Math.min(1, (time - startT) / (endT - startT)))
+            if (endT !== Infinity && endT > startT) {
+                progress = Math.max(0, Math.min(1, (time - startT) / (endT - startT)))
+            } else if (endT === Infinity && time > startT) {
+                // Past the last anchor — extrapolate forward
+                const avgMeasureDur = estimateMeasureDuration(sorted)
+                const elapsed = time - startT
+                const measuresElapsed = Math.floor(elapsed / avgMeasureDur)
+                currentM = currentM + measuresElapsed
+                progress = Math.max(0, Math.min(1, (elapsed - measuresElapsed * avgMeasureDur) / avgMeasureDur))
+            }
             return { measure: currentM, beat: 1, progress, isBeatInterpolation: false }
         }
 
@@ -202,15 +219,26 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         }
 
         let progress = 0
+        let measure = currentP?.measure ?? 1
+        let beat = currentP?.beat ?? 1
         if (nextP && nextP.time > currentP.time) {
             progress = Math.max(0, Math.min(1, (time - currentP.time) / (nextP.time - currentP.time)))
+        } else if (!nextP && currentP && time > currentP.time) {
+            // Past the last anchor/beat anchor — extrapolate forward
+            const anchorsSorted = [...anchors].sort((a, b) => a.time - b.time)
+            const avgMeasureDur = estimateMeasureDuration(anchorsSorted)
+            const elapsed = time - currentP.time
+            const measuresElapsed = Math.floor(elapsed / avgMeasureDur)
+            measure = currentP.measure + measuresElapsed
+            beat = 1
+            progress = Math.max(0, Math.min(1, (elapsed - measuresElapsed * avgMeasureDur) / avgMeasureDur))
         }
         if (!currentP) return { measure: 1, beat: 1, progress: 0, isBeatInterpolation: true }
 
         return {
-            measure: currentP.measure, beat: currentP.beat,
+            measure, beat,
             nextMeasure: nextP?.measure, nextBeat: nextP?.beat,
-            progress, isBeatInterpolation: true
+            progress, isBeatInterpolation: !!nextP
         }
     }, [anchors, beatAnchors])
 
@@ -578,13 +606,19 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         if (!instance || !isLoaded || !(instance as any).GraphicSheet) return
 
         const posData = findCurrentPosition(audioTime)
-        const { measure, beat, progress, isBeatInterpolation } = posData
-        const currentMeasureIndex = measure - 1
+        let { measure, beat, progress, isBeatInterpolation } = posData
+        let currentMeasureIndex = measure - 1
 
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const measureList = (instance as any).GraphicSheet.MeasureList
-            if (!measureList || currentMeasureIndex >= measureList.length) return
+            if (!measureList || measureList.length === 0) return
+            // Clamp to last measure if extrapolated beyond score
+            if (currentMeasureIndex >= measureList.length) {
+                currentMeasureIndex = measureList.length - 1
+                measure = measureList.length
+                progress = Math.min(progress, 1)
+            }
             const measureStaves = measureList[currentMeasureIndex]
             if (!measureStaves || measureStaves.length === 0) return
 
