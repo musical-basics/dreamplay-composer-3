@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useUser } from '@clerk/nextjs'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,14 @@ export default function AdminEditor() {
     const searchParams = useSearchParams()
     const configId = params?.id as string
     const isAdmin = searchParams.get('admin') === 'true'
+
+    // ── Auth guard: redirect unauthenticated users to login ──────────────
+    const { isLoaded: authLoaded, isSignedIn } = useUser()
+    useEffect(() => {
+        if (authLoaded && !isSignedIn) {
+            router.replace('/login')
+        }
+    }, [authLoaded, isSignedIn, router])
 
     const [config, setConfig] = useState<SongConfig | null>(null)
     const [loading, setLoading] = useState(true)
@@ -577,11 +586,25 @@ export default function AdminEditor() {
                 setAnchors(state.anchors);
                 setBeatAnchors(state.beatAnchors);
                 setIsLevel2Mode(true);
+                // Auto-save to DB so view page gets correct anchors immediately
+                updateConfigAction(configId, {
+                    anchors: state.anchors,
+                    beat_anchors: state.beatAnchors,
+                    is_level2: true,
+                    subdivision,
+                }).catch(err => console.error('[AutoMap] Failed to auto-save anchors:', err))
             } else if (state.status === 'paused') {
                 // Apply partial results so user sees progress on the score
                 setAnchors(state.anchors);
                 setBeatAnchors(state.beatAnchors);
                 setIsLevel2Mode(true);
+                // Save partial anchors too — better than nothing for the view page
+                updateConfigAction(configId, {
+                    anchors: state.anchors,
+                    beat_anchors: state.beatAnchors,
+                    is_level2: true,
+                    subdivision,
+                }).catch(err => console.error('[AutoMap] Failed to auto-save partial anchors:', err))
             }
         } catch (err) {
             console.error('[AutoMap Error]', err);
@@ -634,7 +657,14 @@ export default function AdminEditor() {
         setAnchors(finalState.anchors);
         setBeatAnchors(finalState.beatAnchors);
         setIsLevel2Mode(true);
-    }, [v5State, parsedMidi, setAnchors, setBeatAnchors, setIsLevel2Mode]);
+        // Auto-save to DB
+        updateConfigAction(configId, {
+            anchors: finalState.anchors,
+            beat_anchors: finalState.beatAnchors,
+            is_level2: true,
+            subdivision,
+        }).catch(err => console.error('[RunV5ToEnd] Failed to auto-save anchors:', err))
+    }, [v5State, parsedMidi, setAnchors, setBeatAnchors, setIsLevel2Mode, configId, subdivision]);
 
     const handleUpdateGhostTime = useCallback((time: number) => {
         if (!v5State || !v5State.ghostAnchor) return;
