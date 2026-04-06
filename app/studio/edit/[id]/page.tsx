@@ -137,35 +137,32 @@ export default function AdminEditor() {
     }
 
     const uploadConfigFile = useCallback(async (file: File, fileType: 'audio' | 'xml' | 'midi') => {
-        const buffer = await file.arrayBuffer()
-
-        debug.log('[Studio] Uploading config file via server route', {
-            configId,
-            fileType,
-            fileName: file.name,
-            size: file.size,
-            contentType: file.type,
+        debug.log('[Studio] Uploading config file via presigned URL', {
+            configId, fileType, fileName: file.name, size: file.size,
         })
 
-        const response = await fetch('/api/config-upload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': file.type || 'application/octet-stream',
-                'x-config-id': configId,
-                'x-file-type': fileType,
-                'x-file-name': encodeURIComponent(file.name),
-            },
-            body: buffer,
-        })
+        // Step 1: Get a presigned PUT URL from the server (bypasses Vercel 4.5MB limit)
+        const presignRes = await fetch(
+            `/api/config-upload?configId=${configId}&fileType=${fileType}&fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type || 'application/octet-stream')}`
+        )
+        const presignPayload = await presignRes.json().catch(() => null)
+        if (!presignRes.ok) {
+            throw new Error(presignPayload?.error || `Failed to get upload URL: ${presignRes.status}`)
+        }
+        const { presignedUrl, finalFileUrl } = presignPayload as { presignedUrl: string; finalFileUrl: string }
 
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) {
-            throw new Error(payload?.error || `Upload failed: ${response.status}`)
+        // Step 2: PUT directly to R2 — no Vercel body limit
+        const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+        })
+        if (!uploadRes.ok) {
+            throw new Error(`R2 upload failed: ${uploadRes.status}`)
         }
 
-        return payload as { finalFileUrl: string }
+        return { finalFileUrl }
     }, [configId])
-
 
 
     useEffect(() => {
