@@ -19,7 +19,7 @@ export async function GET() {
     const { data, error } = await supabase
         .schema('composer')
         .from('users')
-        .select('id, email, first_name, last_name')
+        .select('id, email, first_name, last_name, email_unsubscribed')
         .order('created_at', { ascending: false })
 
     if (error) {

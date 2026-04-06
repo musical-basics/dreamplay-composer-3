@@ -7,13 +7,14 @@ type User = {
     email: string | null
     first_name: string | null
     last_name: string | null
+    email_unsubscribed: boolean | null
 }
 
 type SendStatus = 'idle' | 'sending' | 'done' | 'error'
 
 type Result = {
     email: string
-    status: 'sent' | 'failed'
+    status: 'sent' | 'failed' | 'skipped'
     error?: string
 }
 
@@ -36,6 +37,8 @@ export default function AdminEmailPage() {
     const [results, setResults] = useState<Result[]>([])
     const [search, setSearch] = useState('')
     const [showPreview, setShowPreview] = useState(false)
+    const [hideUnsubscribed, setHideUnsubscribed] = useState(false)
+    const [togglingId, setTogglingId] = useState<string | null>(null)
     const bodyRef = useRef<HTMLTextAreaElement>(null)
 
     useEffect(() => {
@@ -48,12 +51,17 @@ export default function AdminEmailPage() {
             .catch(() => setLoadingUsers(false))
     }, [])
 
-    const filtered = users.filter(u =>
-        !search ||
-        u.email?.toLowerCase().includes(search.toLowerCase()) ||
-        u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
-        u.last_name?.toLowerCase().includes(search.toLowerCase())
-    )
+    const filtered = users.filter(u => {
+        if (hideUnsubscribed && u.email_unsubscribed) return false
+        if (!search) return true
+        return (
+            u.email?.toLowerCase().includes(search.toLowerCase()) ||
+            u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
+            u.last_name?.toLowerCase().includes(search.toLowerCase())
+        )
+    })
+
+    const unsubscribedCount = users.filter(u => u.email_unsubscribed).length
 
     const toggleUser = (id: string) => {
         setSelected(prev => {
@@ -71,18 +79,36 @@ export default function AdminEmailPage() {
         }
     }
 
-    // Insert {{name}} at cursor position in the textarea
+    // Toggle unsubscribe status for a user (admin override/undo)
+    const toggleUnsubscribe = async (user: User) => {
+        setTogglingId(user.id)
+        const newVal = !user.email_unsubscribed
+        try {
+            const res = await fetch('/api/admin/toggle-unsubscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, unsubscribed: newVal }),
+            })
+            if (res.ok) {
+                setUsers(prev => prev.map(u =>
+                    u.id === user.id ? { ...u, email_unsubscribed: newVal } : u
+                ))
+            }
+        } catch {
+            // silent
+        } finally {
+            setTogglingId(null)
+        }
+    }
+
+    // Insert {{name}} at cursor position
     const insertName = () => {
         const ta = bodyRef.current
-        if (!ta) {
-            setBody(b => b + '{{name}}')
-            return
-        }
+        if (!ta) { setBody(b => b + '{{name}}'); return }
         const start = ta.selectionStart
         const end = ta.selectionEnd
         const next = body.slice(0, start) + '{{name}}' + body.slice(end)
         setBody(next)
-        // Restore cursor after the inserted token
         setTimeout(() => {
             ta.selectionStart = ta.selectionEnd = start + '{{name}}'.length
             ta.focus()
@@ -101,6 +127,13 @@ export default function AdminEmailPage() {
         for (let i = 0; i < targets.length; i++) {
             const user = targets[i]
             setProgress({ current: i + 1, total: targets.length })
+
+            // Skip opted-out users
+            if (user.email_unsubscribed) {
+                setResults(prev => [...prev, { email: user.email!, status: 'skipped' }])
+                continue
+            }
+
             const name = displayName(user)
             try {
                 const res = await fetch('/api/admin/send-email', {
@@ -115,7 +148,6 @@ export default function AdminEmailPage() {
                 const message = err instanceof Error ? err.message : 'Unknown error'
                 setResults(prev => [...prev, { email: user.email!, status: 'failed', error: message }])
             }
-            // Small delay between sends to avoid Resend rate limits
             if (i < targets.length - 1) await new Promise(r => setTimeout(r, 300))
         }
 
@@ -123,8 +155,6 @@ export default function AdminEmailPage() {
     }
 
     const canSend = selected.size > 0 && subject.trim() && body.trim() && sendStatus !== 'sending'
-
-    // Preview: use first selected user for personalisation demo
     const firstSelected = users.find(u => selected.has(u.id))
     const previewName = firstSelected ? displayName(firstSelected) : 'Alex'
 
@@ -136,7 +166,8 @@ export default function AdminEmailPage() {
                     <div>
                         <h1 className="text-2xl font-bold">Admin Email</h1>
                         <p className="text-sm text-neutral-400 mt-1">
-                            Send emails to users — fires one email per recipient · use <code className="text-purple-400">{'{{name}}'}</code> for personalisation
+                            Send emails to users — fires one email per recipient · use{' '}
+                            <code className="text-purple-400">{'{{name}}'}</code> for personalisation
                         </p>
                     </div>
                     {sendStatus === 'sending' && (
@@ -176,6 +207,22 @@ export default function AdminEmailPage() {
                                 onChange={e => setSearch(e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500"
                             />
+                            {/* Unsubscribed toggle */}
+                            {unsubscribedCount > 0 && (
+                                <button
+                                    onClick={() => setHideUnsubscribed(p => !p)}
+                                    className={`flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md transition-colors border ${
+                                        hideUnsubscribed
+                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                            : 'text-neutral-400 border-neutral-700 hover:text-white'
+                                    }`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${hideUnsubscribed ? 'bg-amber-400' : 'bg-neutral-600'}`} />
+                                    {hideUnsubscribed
+                                        ? `Hiding ${unsubscribedCount} unsubscribed`
+                                        : `Show all (${unsubscribedCount} unsubscribed)`}
+                                </button>
+                            )}
                         </div>
 
                         <div className="overflow-y-auto flex-1 max-h-[420px]">
@@ -187,18 +234,38 @@ export default function AdminEmailPage() {
                                 filtered.map(user => (
                                     <label
                                         key={user.id}
-                                        className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 cursor-pointer border-b border-neutral-900 last:border-0 transition-colors"
+                                        className={`flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 cursor-pointer border-b border-neutral-900 last:border-0 transition-colors ${user.email_unsubscribed ? 'opacity-50' : ''}`}
                                     >
                                         <input
                                             type="checkbox"
                                             checked={selected.has(user.id)}
                                             onChange={() => toggleUser(user.id)}
-                                            className="w-4 h-4 accent-purple-500"
+                                            className="w-4 h-4 accent-purple-500 shrink-0"
                                         />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">{displayName(user)}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium truncate">{displayName(user)}</p>
+                                                {user.email_unsubscribed && (
+                                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+                                                        unsub
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-xs text-neutral-500 truncate">{user.email || 'no email'}</p>
                                         </div>
+                                        {/* Admin toggle */}
+                                        <button
+                                            onClick={e => { e.preventDefault(); toggleUnsubscribe(user) }}
+                                            disabled={togglingId === user.id}
+                                            title={user.email_unsubscribed ? 'Re-subscribe this user' : 'Mark as unsubscribed'}
+                                            className={`shrink-0 text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                                                user.email_unsubscribed
+                                                    ? 'border-green-600/40 text-green-400 hover:bg-green-500/10'
+                                                    : 'border-neutral-700 text-neutral-600 hover:text-red-400 hover:border-red-500/40'
+                                            }`}
+                                        >
+                                            {togglingId === user.id ? '…' : user.email_unsubscribed ? 'Re-sub' : 'Unsub'}
+                                        </button>
                                     </label>
                                 ))
                             )}
@@ -210,15 +277,13 @@ export default function AdminEmailPage() {
                         <div className="flex items-center justify-between">
                             <h2 className="text-sm font-semibold">Compose</h2>
                             <div className="flex items-center gap-2">
-                                {/* {{name}} chip */}
                                 <button
                                     onClick={insertName}
-                                    title="Insert {{name}} at cursor — will be replaced with recipient's full name"
+                                    title="Insert {{name}} at cursor"
                                     className="px-2 py-1 rounded-md bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 text-xs font-mono transition-colors border border-purple-500/30"
                                 >
                                     {'{{name}}'}
                                 </button>
-                                {/* Preview toggle */}
                                 <button
                                     onClick={() => setShowPreview(p => !p)}
                                     className={`px-2 py-1 rounded-md text-xs transition-colors border ${showPreview ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' : 'text-neutral-400 border-neutral-700 hover:text-white'}`}
@@ -261,7 +326,7 @@ export default function AdminEmailPage() {
                         </div>
 
                         <p className="text-xs text-neutral-500">
-                            An unsubscribe link will be added automatically to every email.
+                            An unsubscribe link is added automatically. Opted-out users are skipped.
                         </p>
 
                         <button
@@ -274,20 +339,25 @@ export default function AdminEmailPage() {
                                 : `Send to ${selected.size} recipient${selected.size !== 1 ? 's' : ''}`}
                         </button>
 
-                        {/* Results */}
                         {results.length > 0 && (
                             <div className="space-y-1 max-h-48 overflow-y-auto">
                                 <p className="text-xs text-neutral-400 mb-2">Results</p>
                                 {results.map((r, i) => (
-                                    <div key={i} className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg ${r.status === 'sent' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                                        <span>{r.status === 'sent' ? '✓' : '✗'}</span>
+                                    <div key={i} className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg ${
+                                        r.status === 'sent' ? 'bg-green-500/10 text-green-400' :
+                                        r.status === 'skipped' ? 'bg-neutral-800 text-neutral-500' :
+                                        'bg-red-500/10 text-red-400'
+                                    }`}>
+                                        <span>{r.status === 'sent' ? '✓' : r.status === 'skipped' ? '⊘' : '✗'}</span>
                                         <span className="truncate">{r.email}</span>
+                                        {r.status === 'skipped' && <span className="text-neutral-600">— opted out</span>}
                                         {r.error && <span className="text-red-300 truncate">— {r.error}</span>}
                                     </div>
                                 ))}
                                 {sendStatus === 'done' && (
                                     <p className="text-xs text-neutral-400 mt-2">
                                         {results.filter(r => r.status === 'sent').length} sent ·{' '}
+                                        {results.filter(r => r.status === 'skipped').length} skipped ·{' '}
                                         {results.filter(r => r.status === 'failed').length} failed
                                     </p>
                                 )}
