@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Music, Share2, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Music, Share2, Check, Eye } from 'lucide-react'
 import { CreatorChip } from '@/components/profile/CreatorChip'
 import { SplitScreenLayout } from '@/components/studio2/layout/SplitScreenLayoutStudio2'
 import { ViewerTransport } from '@/components/viewer/ViewerTransport'
@@ -25,6 +25,7 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
     const [loading, setLoading] = useState(true)
     const [loadingStage, setLoadingStage] = useState(0)
     const [shareCopied, setShareCopied] = useState(false)
+    const [autoplayBlocked, setAutoplayBlocked] = useState(false)
 
     const isPlaying = useAppStore((s) => s.isPlaying)
     const setPlaying = useAppStore((s) => s.setPlaying)
@@ -123,6 +124,20 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
         loadMidiFromUrl()
     }, [config.midi_url, loadMidi])
 
+    // Auto-play once loading finishes
+    useEffect(() => {
+        if (loading) return
+        const pm = getPlaybackManager()
+        pm.play().then(() => {
+            setPlaying(true)
+            setAutoplayBlocked(false)
+        }).catch(() => {
+            // Browser blocked autoplay — show tap-to-play overlay
+            setAutoplayBlocked(true)
+        })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading])
+
     // rAF loop for display time
     useEffect(() => {
         const tick = () => {
@@ -207,9 +222,17 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
                             <Music className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-white font-medium text-sm truncate max-w-[300px]">
-                                {config.title || 'Untitled'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-white font-medium text-sm truncate max-w-[300px]">
+                                    {config.title || 'Untitled'}
+                                </span>
+                                {config.view_count != null && config.view_count > 0 && (
+                                    <span className="flex items-center gap-1 text-[11px] text-zinc-500">
+                                        <Eye className="w-3 h-3" />
+                                        {config.view_count.toLocaleString()}
+                                    </span>
+                                )}
+                            </div>
                             {authorName && (
                                 <CreatorChip authorName={authorName} />
                             )}
@@ -242,13 +265,32 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
             </div>
 
             {/* Main visualization area */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden relative">
                 <SplitScreenLayout
                     audioUrl={config.audio_url || null}
                     xmlUrl={config.xml_url || null}
                     parsedMidi={parsedMidi}
                     isAdmin={false}
                 />
+                {/* Tap-to-play overlay — shown when browser blocks autoplay */}
+                {autoplayBlocked && (
+                    <button
+                        onClick={async () => {
+                            const pm = getPlaybackManager()
+                            await pm.play()
+                            setPlaying(true)
+                            setAutoplayBlocked(false)
+                        }}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm z-20 cursor-pointer"
+                    >
+                        <div className="w-20 h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-2xl hover:bg-white/20 transition-colors duration-200">
+                            <svg className="w-9 h-9 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                        </div>
+                        <p className="text-white/70 text-sm font-medium">Tap anywhere to play</p>
+                    </button>
+                )}
             </div>
 
             {/* Transport bar */}

@@ -19,21 +19,33 @@ so future setups don't repeat the same mistakes.
 - Wait for Resend to show "Verified" before sending
 
 ### 2. Add SPF record — CRITICAL, easy to forget
-**This is the #1 silent failure cause.** Without SPF, Gmail silently drops ~50% of emails
+**This is the #1 silent failure cause.** Without correct SPF, Gmail silently drops ~50% of emails
 (they show "Sent" in Resend but never arrive in inbox OR spam — no trace).
 
 Add to your DNS:
 ```
-Name:  @  (root domain)
+Name:  @  (root domain — NOT a subdomain like "send")
 Type:  TXT
 Value: v=spf1 include:_spf.resend.com ~all
 TTL:   Auto
 ```
 
-> **Bug encountered (Apr 2026):** Blast of 15 emails — 7 showed "Sent" in Resend, 
-> never arrived anywhere (not inbox, not spam). Root cause: no SPF record on 
-> dreamplay.studio. Gmail accepted at SMTP level then silently discarded.
-> DKIM was set up correctly; SPF was simply never added.
+> **Bug encountered (Apr 2026):** Blast of 15 emails — 7 showed "Sent" in Resend,
+> never arrived anywhere (not inbox, not spam). Root cause: SPF record existed but
+> was misconfigured in TWO ways:
+>
+> 1. **Wrong subdomain:** SPF was on host `send` (`send.dreamplay.studio`) instead
+>    of `@` (root `dreamplay.studio`). Gmail looks up SPF on the root domain of the
+>    sender address — the subdomain record was completely ignored.
+>
+> 2. **Wrong provider:** Value was `v=spf1 include:amazonses.com ~all` — a leftover
+>    from a previous Amazon SES setup. The app had already migrated to Resend, but
+>    the SPF record was never updated.
+>
+> **Fix:** Edit the existing record — change Host `send` → `@` and change value to
+> `v=spf1 include:_spf.resend.com ~all`.
+>
+> ⚠️ If you ever migrate email providers again, update SPF immediately.
 
 ### 3. Add DMARC record (optional but recommended)
 DMARC ties SPF + DKIM together. Start with `p=none` (monitoring only):
