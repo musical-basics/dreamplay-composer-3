@@ -31,6 +31,10 @@ function buildEmailPayload(
         from: fromAddress,
         to: [recipient.email],
         subject: personalSubject,
+        headers: {
+            'List-Unsubscribe': `<${unsubscribeUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
         text: `${personalBody}\n\n---\nYou received this because you have an account on DreamPlay Studio.\nDon't want to receive these emails? Unsubscribe: ${unsubscribeUrl}`,
         html: `
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#f5f5f5;">
