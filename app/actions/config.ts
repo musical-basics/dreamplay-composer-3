@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import {
     getAllConfigs,
     getPublishedConfigs,
+    getPublishedConfigsSorted,
     getConfigById,
     getPublicConfigById,
     getConfigByIdInternal,
@@ -18,6 +19,7 @@ import {
     togglePublish,
     saveAnchors,
     generateUploadUrl,
+    saveThumbnail,
 } from '@/lib/services/configService'
 import type { SongConfig, Anchor, BeatAnchor } from '@/lib/types'
 
@@ -42,6 +44,12 @@ export async function fetchAllConfigs(): Promise<SongConfig[]> {
 
 export async function fetchPublishedConfigs(): Promise<SongConfig[]> {
     return getPublishedConfigs()
+}
+
+export async function fetchPublishedConfigsSortedAction(
+    sort: 'recent' | 'popular'
+): Promise<SongConfig[]> {
+    return getPublishedConfigsSorted(sort)
 }
 
 export async function fetchConfigById(id: string): Promise<SongConfig | null> {
@@ -96,6 +104,14 @@ export async function generateUploadUrlAction(
 ): Promise<{ uploadUrl: string; finalFileUrl: string }> {
     const user = await getAuthUser()
     return generateUploadUrl(configId, fileType, fileName, contentType, user.id)
+}
+
+export async function saveThumbnailAction(
+    configId: string,
+    thumbnailUrl: string
+): Promise<void> {
+    const user = await getAuthUser()
+    return saveThumbnail(configId, thumbnailUrl, user.id)
 }
 
 export async function duplicateConfigAction(

@@ -51,6 +51,15 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config }) => {
         'Almost ready...',
     ]
 
+    // Increment view count once on mount (fire-and-forget)
+    useEffect(() => {
+        fetch('/api/view', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ configId: config.id }),
+        }).catch(() => { /* silent fail */ })
+    }, [config.id])
+
     // Set all effects to ON on mount
     useEffect(() => {
         setRevealMode('NOTE')

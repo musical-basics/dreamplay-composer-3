@@ -7,10 +7,11 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2, Globe, GlobeLock, Music, FileMusic } from 'lucide-react'
+import { Plus, Trash2, Globe, GlobeLock, Music, Eye } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import { Button } from '@/components/ui/button'
+import { ThumbnailCaptureButton } from '@/components/home/ThumbnailCaptureButton'
 import { fetchAllConfigs, createNewConfig, deleteConfigAction, togglePublishAction } from '@/app/actions/config'
 import type { SongConfig } from '@/lib/types'
 
@@ -145,7 +146,7 @@ export default function AdminDashboard() {
                     </div>
                 ) : configs.length === 0 ? (
                     <div className="text-center py-20 space-y-4">
-                        <FileMusic className="w-16 h-16 mx-auto text-zinc-700" />
+                        <Music className="w-16 h-16 mx-auto text-zinc-700" />
                         <p className="text-zinc-400 text-lg">No configurations yet</p>
                         <p className="text-zinc-500 text-sm">Create your first song configuration to get started.</p>
 
@@ -160,10 +161,11 @@ export default function AdminDashboard() {
                 ) : (
                     <div className="grid gap-4">
                         {/* Table header */}
-                        <div className="grid grid-cols-[60px_1fr_100px_80px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+                        <div className="grid grid-cols-[60px_1fr_90px_60px_120px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
                             <span>Cover</span>
                             <span>Title</span>
                             <span>Status</span>
+                            <span>Views</span>
                             <span className="text-right">Actions</span>
                         </div>
 
@@ -171,11 +173,19 @@ export default function AdminDashboard() {
                         {configs.map((config) => (
                             <div
                                 key={config.id}
-                                className="grid grid-cols-[60px_1fr_100px_80px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
+                                className="grid grid-cols-[60px_1fr_90px_60px_120px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
                             >
-                                {/* Cover Icon */}
-                                <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center shrink-0">
-                                    <Music className="w-5 h-5 text-zinc-500" />
+                                {/* Cover / Thumbnail */}
+                                <div className="w-10 h-10 rounded overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                                    {config.thumbnail_url ? (
+                                        <img
+                                            src={config.thumbnail_url}
+                                            alt={config.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <Music className="w-5 h-5 text-zinc-500" />
+                                    )}
                                 </div>
 
                                 {/* Title */}
@@ -214,8 +224,22 @@ export default function AdminDashboard() {
                                     {config.is_published ? 'Live' : 'Draft'}
                                 </button>
 
+                                {/* View Count */}
+                                <div className="flex items-center gap-1 text-zinc-500">
+                                    <Eye className="w-3 h-3" />
+                                    <span className="text-xs font-mono">{config.view_count ?? 0}</span>
+                                </div>
+
                                 {/* Actions */}
                                 <div className="flex items-center justify-end gap-1">
+                                    <ThumbnailCaptureButton
+                                        configId={config.id}
+                                        onSuccess={(url) => {
+                                            setConfigs(prev => prev.map(c =>
+                                                c.id === config.id ? { ...c, thumbnail_url: url } : c
+                                            ))
+                                        }}
+                                    />
                                     <Link href={`/studio/edit/${config.id}`}>
                                         <Button variant="ghost" size="sm" className="h-7 px-2 text-zinc-400 hover:text-white font-outfit">
                                             Edit

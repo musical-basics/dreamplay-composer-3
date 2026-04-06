@@ -118,6 +118,7 @@ export interface SongConfig {
     subdivision?: number | null
     is_level2?: boolean | null
     is_published?: boolean
+    view_count?: number
     music_font?: string | null
     created_at: string
     updated_at: string

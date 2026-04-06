@@ -165,6 +165,26 @@ export async function getPublishedConfigs(): Promise<SongConfig[]> {
     return (data || []) as SongConfig[]
 }
 
+export async function getPublishedConfigsSorted(
+    sort: 'recent' | 'popular'
+): Promise<SongConfig[]> {
+    const sb = getSupabase()
+    const orderColumn = sort === 'popular' ? 'view_count' : 'updated_at'
+    const { data, error } = await sb
+        .from('configurations')
+        .select('*')
+        .eq('is_published', true)
+        .order(orderColumn, { ascending: false })
+
+    if (error) throw new Error(`Failed to list published configs: ${error.message}`)
+    return (data || []) as SongConfig[]
+}
+
+export async function saveThumbnail(id: string, thumbnailUrl: string, userId: string): Promise<void> {
+    await updateConfig(id, { thumbnail_url: thumbnailUrl } as any, userId)
+}
+
+
 export async function updateConfig(
     id: string,
     updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font'>>,
