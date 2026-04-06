@@ -45,7 +45,10 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         loadConfigs()
+        // Ping login — deduped server-side (once per 6h per user)
+        fetch('/api/activity/session', { method: 'POST' }).catch(() => {})
     }, [])
+
 
     const handleCreate = async () => {
         try {

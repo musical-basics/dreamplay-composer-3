@@ -23,6 +23,7 @@ import {
     saveThumbnail,
 } from '@/lib/services/configService'
 import type { SongConfig, Anchor, BeatAnchor } from '@/lib/types'
+import { logActivity } from '@/lib/services/activityLogService'
 
 async function getAuthUser() {
     const { userId } = await auth()
@@ -68,7 +69,10 @@ export async function fetchConfigByIdInternal(id: string): Promise<SongConfig | 
 
 export async function createNewConfig(title?: string): Promise<SongConfig> {
     const user = await getAuthUser()
-    return createConfig(title, user.id)
+    const config = await createConfig(title, user.id)
+    // Fire-and-forget — don't await
+    logActivity('config.created', { user_id: user.id, config_id: config.id, metadata: { title: config.title } })
+    return config
 }
 
 export async function updateConfigAction(

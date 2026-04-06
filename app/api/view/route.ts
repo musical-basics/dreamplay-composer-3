@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logActivity } from '@/lib/services/activityLogService'
 
 /**
  * POST /api/view
@@ -10,7 +11,8 @@ import { createClient } from '@supabase/supabase-js'
  */
 export async function POST(req: NextRequest) {
     try {
-        const { configId } = await req.json()
+        const body = await req.json()
+        const { configId, viewerId } = body as { configId: string; viewerId?: string }
         if (!configId || typeof configId !== 'string') {
             return NextResponse.json({ error: 'configId is required' }, { status: 400 })
         }
@@ -29,9 +31,16 @@ export async function POST(req: NextRequest) {
             console.warn('[View API] Failed to increment view count:', error.message)
         }
 
+        // Log the view event (fire-and-forget)
+        logActivity('config.viewed', {
+            user_id: viewerId ?? null,
+            config_id: configId,
+        })
+
         return NextResponse.json({ ok: true })
     } catch (err) {
         console.warn('[View API] Unexpected error:', err)
         return NextResponse.json({ ok: false })
     }
 }
+
