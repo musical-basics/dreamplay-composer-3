@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation'
 import { ViewerPage } from '@/components/viewer/ViewerPage'
-import { fetchConfigById } from '@/app/actions/config'
+import { fetchConfigByIdInternal } from '@/app/actions/config'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
-    const config = await fetchConfigById(id)
+    const config = await fetchConfigByIdInternal(id)
 
-    if (!config) {
+    if (!config || !config.is_published) {
         return { title: 'Not Found — DreamPlay Composer' }
     }
 
@@ -18,9 +18,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
-    const config = await fetchConfigById(id)
+    const config = await fetchConfigByIdInternal(id)
 
-    if (!config) {
+    // Only render if the composition is published — never expose drafts
+    if (!config || !config.is_published) {
         notFound()
     }
 
