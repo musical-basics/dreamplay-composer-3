@@ -573,24 +573,8 @@ export default function AdminEditor() {
                 debug.log(`[EditPage] ${staleCount > 0 ? 'Updated' : 'Locked'} ${events.length} xmlEvents into ref (${fermataCount} fermatas)${staleCount > 0 ? ` — replaced ${staleCount} stale events` : ''}`)
             }
         }
-        // Mark score as rendered — deferred thumbnail capture if already published and no thumbnail
+        // Mark score as rendered — gates the thumbnail capture in handleTogglePublish
         scoreRenderedRef.current = true
-        setTimeout(() => {
-            if (scoreRenderedRef.current) {
-                // Access config via closure — reading latest configId
-                const configId = window.location.pathname.split('/').pop() ?? ''
-                // Only auto-capture on first publish if no thumbnail exists yet
-                // (We check this by fetching the config; skip if already exists)
-                const el = document.getElementById('score-thumbnail-target')
-                if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
-                    captureAndUploadThumbnail(configId, 'score-thumbnail-target')
-                        .then((url) => {
-                            if (url) setConfig((prev) => prev ? { ...prev, thumbnail_url: url } : prev)
-                        })
-                        .catch(() => { /* non-fatal */ })
-                }
-            }
-        }, 1500) // Let score SVG finish painting before capture
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAutoMap = useCallback(async (chordThresholdFraction: number) => {
