@@ -73,7 +73,7 @@ export async function createNewConfig(title?: string): Promise<SongConfig> {
 
 export async function updateConfigAction(
     id: string,
-    updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font'>>
+    updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font' | 'difficulty'>>
 ): Promise<SongConfig> {
     const user = await getAuthUser()
     // Admins can update any config regardless of ownership

@@ -121,6 +121,7 @@ export interface SongConfig {
     is_published?: boolean
     view_count?: number
     music_font?: string | null
+    difficulty?: 'beginner' | 'intermediate' | 'advanced' | null
     created_at: string
     updated_at: string
 }

@@ -13,8 +13,18 @@ import { dark } from '@clerk/themes'
 import { Button } from '@/components/ui/button'
 import { ThumbnailCaptureButton } from '@/components/home/ThumbnailCaptureButton'
 import { UsernameSettingsWidget } from '@/components/studio/UsernameSettingsWidget'
-import { fetchAllConfigs, createNewConfig, deleteConfigAction, togglePublishAction } from '@/app/actions/config'
+import { SupportModal } from '@/components/studio/SupportModal'
+import { fetchAllConfigs, createNewConfig, deleteConfigAction, togglePublishAction, updateConfigAction } from '@/app/actions/config'
 import type { SongConfig } from '@/lib/types'
+
+type Difficulty = 'beginner' | 'intermediate' | 'advanced'
+
+const DIFFICULTY_OPTIONS: { value: Difficulty | ''; label: string; color: string }[] = [
+    { value: '',             label: 'No tag',       color: 'text-zinc-500' },
+    { value: 'beginner',     label: 'Beginner',     color: 'text-emerald-400' },
+    { value: 'intermediate', label: 'Intermediate', color: 'text-amber-400' },
+    { value: 'advanced',     label: 'Advanced',     color: 'text-red-400' },
+]
 
 export default function AdminDashboard() {
     const [configs, setConfigs] = useState<SongConfig[]>([])
@@ -54,6 +64,16 @@ export default function AdminDashboard() {
             setConfigs((prev) => prev.filter((c) => c.id !== id))
         } catch (err) {
             console.error('Failed to delete config:', err)
+        }
+    }
+
+    const handleDifficulty = async (id: string, difficulty: Difficulty | null) => {
+        setConfigs(prev => prev.map(c => c.id === id ? { ...c, difficulty } : c))
+        try {
+            await updateConfigAction(id, { difficulty })
+        } catch {
+            // revert optimistic update on failure
+            setConfigs(prev => prev.map(c => c.id === id ? { ...c } : c))
         }
     }
 
@@ -171,7 +191,7 @@ export default function AdminDashboard() {
                 ) : (
                     <div className="grid gap-4">
                         {/* Table header */}
-                        <div className="grid grid-cols-[60px_1fr_90px_60px_155px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+                        <div className="grid grid-cols-[60px_1fr_90px_60px_185px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
                             <span>Cover</span>
                             <span>Title</span>
                             <span>Status</span>
@@ -183,7 +203,7 @@ export default function AdminDashboard() {
                         {configs.map((config) => (
                             <div
                                 key={config.id}
-                                className="grid grid-cols-[60px_1fr_90px_60px_155px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
+                                className="grid grid-cols-[60px_1fr_90px_60px_185px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
                             >
                                 {/* Cover / Thumbnail */}
                                 <div className="w-10 h-10 rounded overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
@@ -220,6 +240,18 @@ export default function AdminDashboard() {
                                             WAV
                                         </span>
                                     </div>
+                                    {/* Difficulty picker */}
+                                    <div className="mt-2">
+                                        <select
+                                            value={config.difficulty ?? ''}
+                                            onChange={(e) => handleDifficulty(config.id, (e.target.value as Difficulty) || null)}
+                                            className="text-[10px] uppercase tracking-wider bg-zinc-900 border border-zinc-800 rounded-md px-1.5 py-0.5 text-zinc-400 focus:outline-none focus:border-purple-500/40 cursor-pointer hover:border-zinc-600 transition-colors"
+                                        >
+                                            {DIFFICULTY_OPTIONS.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 {/* Publish status */}
@@ -242,6 +274,7 @@ export default function AdminDashboard() {
 
                                 {/* Actions */}
                                 <div className="flex items-center justify-end gap-1">
+                                    <SupportModal configId={config.id} />
                                     <ThumbnailCaptureButton
                                         configId={config.id}
                                         onSuccess={(url) => {

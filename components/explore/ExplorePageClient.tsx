@@ -2,11 +2,15 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Search, Music, Eye, Calendar, X, TrendingUp, Clock, ArrowUpAZ, Play } from 'lucide-react'
-import { fetchPublishedConfigsSortedAction } from '@/app/actions/config'
+import { Search, Music, Eye, Calendar, X, TrendingUp, Clock, ArrowUpAZ, Play, ChevronDown } from 'lucide-react'
+import { fetchPublishedConfigsSortedAction, updateConfigAction } from '@/app/actions/config'
 import type { SongConfig } from '@/lib/types'
 
 type SortMode = 'recent' | 'popular' | 'az'
+type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced'
+type Difficulty = 'beginner' | 'intermediate' | 'advanced'
+
+const PAGE_SIZE = 24
 
 interface AuthorInfo {
     displayName: string
@@ -17,6 +21,30 @@ interface ExplorePageClientProps {
     compositions: SongConfig[]
     authorInfo: Record<string, AuthorInfo>
 }
+
+// ─── Difficulty config ───────────────────────────────────────────────────────
+
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+    beginner: 'Beginner',
+    intermediate: 'Intermediate',
+    advanced: 'Advanced',
+}
+
+const DIFFICULTY_COLORS: Record<Difficulty, string> = {
+    beginner: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    intermediate: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    advanced: 'bg-red-500/20 text-red-300 border-red-500/30',
+}
+
+function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
+    return (
+        <span className={`absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-sm ${DIFFICULTY_COLORS[difficulty]}`}>
+            {DIFFICULTY_LABELS[difficulty]}
+        </span>
+    )
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function titleToHue(title: string): number {
     let hash = 0
@@ -43,6 +71,8 @@ function formatDate(dateStr: string): string {
         return dateStr
     }
 }
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
 function ExploreCard({
     config,
@@ -90,6 +120,9 @@ function ExploreCard({
                         </div>
                     </div>
                 )}
+
+                {/* Difficulty badge */}
+                {config.difficulty && <DifficultyBadge difficulty={config.difficulty} />}
 
                 {/* Hover overlay + play button */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -146,21 +179,35 @@ function ExploreCard({
     )
 }
 
+// ─── Sort + difficulty filter config ─────────────────────────────────────────
+
 const SORT_OPTIONS: { key: SortMode; label: string; icon: React.ReactNode }[] = [
     { key: 'recent',  label: 'Most Recent',  icon: <Clock className="w-3.5 h-3.5" /> },
     { key: 'popular', label: 'Most Viewed',  icon: <TrendingUp className="w-3.5 h-3.5" /> },
     { key: 'az',      label: 'A → Z',        icon: <ArrowUpAZ className="w-3.5 h-3.5" /> },
 ]
 
+const DIFFICULTY_FILTERS: { key: DifficultyFilter; label: string; color: string }[] = [
+    { key: 'all',          label: 'All levels',   color: 'text-zinc-300 border-zinc-700 hover:border-zinc-500' },
+    { key: 'beginner',     label: 'Beginner',     color: 'text-emerald-300 border-emerald-500/40 hover:border-emerald-400' },
+    { key: 'intermediate', label: 'Intermediate', color: 'text-amber-300 border-amber-500/40 hover:border-amber-400' },
+    { key: 'advanced',     label: 'Advanced',     color: 'text-red-300 border-red-500/40 hover:border-red-400' },
+]
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export function ExplorePageClient({ compositions: initial, authorInfo }: ExplorePageClientProps) {
     const [allCompositions, setAllCompositions] = useState<SongConfig[]>(initial)
     const [sortMode, setSortMode] = useState<SortMode>('recent')
+    const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all')
     const [query, setQuery] = useState('')
     const [sortLoading, setSortLoading] = useState(false)
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
     const handleSort = async (mode: SortMode) => {
         if (mode === sortMode) return
         setSortMode(mode)
+        setVisibleCount(PAGE_SIZE) // reset pagination on sort change
         if (mode === 'az') {
             setAllCompositions((prev) => [...prev].sort((a, b) => a.title.localeCompare(b.title)))
             return
@@ -176,14 +223,29 @@ export function ExplorePageClient({ compositions: initial, authorInfo }: Explore
         }
     }
 
+    const handleDifficultyFilter = (d: DifficultyFilter) => {
+        setDifficultyFilter(d)
+        setVisibleCount(PAGE_SIZE) // reset pagination on filter change
+    }
+
+    const handleSearch = (q: string) => {
+        setQuery(q)
+        setVisibleCount(PAGE_SIZE) // reset pagination on search change
+    }
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase()
-        if (!q) return allCompositions
-        return allCompositions.filter((c) =>
-            c.title?.toLowerCase().includes(q) ||
-            (c.user_id && authorInfo[c.user_id]?.displayName.toLowerCase().includes(q))
-        )
-    }, [allCompositions, query, authorInfo])
+        return allCompositions.filter((c) => {
+            const matchesQuery = !q ||
+                c.title?.toLowerCase().includes(q) ||
+                (c.user_id && authorInfo[c.user_id]?.displayName.toLowerCase().includes(q))
+            const matchesDifficulty = difficultyFilter === 'all' || c.difficulty === difficultyFilter
+            return matchesQuery && matchesDifficulty
+        })
+    }, [allCompositions, query, authorInfo, difficultyFilter])
+
+    const visible = filtered.slice(0, visibleCount)
+    const hasMore = visibleCount < filtered.length
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white">
@@ -201,45 +263,71 @@ export function ExplorePageClient({ compositions: initial, authorInfo }: Explore
 
             {/* Sticky filter bar */}
             <div className="sticky top-[57px] z-30 bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-800/50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    {/* Search */}
-                    <div className="relative flex-1 max-w-md w-full">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
-                        <input
-                            type="text"
-                            id="explore-search"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search by title or creator..."
-                            className="w-full bg-zinc-900 border border-zinc-700/60 rounded-xl pl-9 pr-9 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/20 transition-all duration-200"
-                        />
-                        {query && (
-                            <button
-                                onClick={() => setQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                            >
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        )}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 space-y-2">
+                    {/* Row 1: search + sort */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        {/* Search */}
+                        <div className="relative flex-1 max-w-md w-full">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                            <input
+                                type="text"
+                                id="explore-search"
+                                value={query}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                placeholder="Search by title or creator..."
+                                className="w-full bg-zinc-900 border border-zinc-700/60 rounded-xl pl-9 pr-9 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/20 transition-all duration-200"
+                            />
+                            {query && (
+                                <button
+                                    onClick={() => handleSearch('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Sort pills */}
+                        <div className="flex items-center gap-1 bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shrink-0">
+                            {SORT_OPTIONS.map((opt) => (
+                                <button
+                                    key={opt.key}
+                                    id={`explore-sort-${opt.key}`}
+                                    onClick={() => handleSort(opt.key)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                        sortMode === opt.key
+                                            ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                            : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                                    }`}
+                                >
+                                    {opt.icon}
+                                    <span className="hidden sm:inline">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    {/* Sort pills */}
-                    <div className="flex items-center gap-1 bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shrink-0">
-                        {SORT_OPTIONS.map((opt) => (
+                    {/* Row 2: difficulty filter pills */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {DIFFICULTY_FILTERS.map((f) => (
                             <button
-                                key={opt.key}
-                                id={`explore-sort-${opt.key}`}
-                                onClick={() => handleSort(opt.key)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                    sortMode === opt.key
-                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                                        : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                                key={f.key}
+                                id={`explore-diff-${f.key}`}
+                                onClick={() => handleDifficultyFilter(f.key)}
+                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all duration-200 ${
+                                    difficultyFilter === f.key
+                                        ? `${f.color} bg-white/5`
+                                        : 'text-zinc-600 border-zinc-800 hover:text-zinc-400'
                                 }`}
                             >
-                                {opt.icon}
-                                <span className="hidden sm:inline">{opt.label}</span>
+                                {f.label}
                             </button>
                         ))}
+                        {difficultyFilter !== 'all' && (
+                            <span className="text-xs text-zinc-600">
+                                · {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -252,31 +340,50 @@ export function ExplorePageClient({ compositions: initial, authorInfo }: Explore
                             <Music className="w-10 h-10 text-zinc-600" />
                         </div>
                         <p className="text-zinc-400 text-lg font-medium">
-                            {query ? `No results for "${query}"` : 'No compositions yet'}
+                            {query ? `No results for "${query}"` : difficultyFilter !== 'all' ? `No ${difficultyFilter} compositions yet` : 'No compositions yet'}
                         </p>
-                        {query && (
+                        {(query || difficultyFilter !== 'all') && (
                             <button
-                                onClick={() => setQuery('')}
+                                onClick={() => { handleSearch(''); handleDifficultyFilter('all') }}
                                 className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
                             >
-                                Clear search
+                                Clear filters
                             </button>
                         )}
                     </div>
                 ) : (
-                    <div
-                        className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 transition-opacity duration-300 ${
-                            sortLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'
-                        }`}
-                    >
-                        {filtered.map((config) => (
-                            <ExploreCard
-                                key={config.id}
-                                config={config}
-                                authorInfo={config.user_id ? authorInfo[config.user_id] : undefined}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        <div
+                            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 transition-opacity duration-300 ${
+                                sortLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'
+                            }`}
+                        >
+                            {visible.map((config) => (
+                                <ExploreCard
+                                    key={config.id}
+                                    config={config}
+                                    authorInfo={config.user_id ? authorInfo[config.user_id] : undefined}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Load More */}
+                        {hasMore && (
+                            <div className="flex flex-col items-center gap-2 mt-12">
+                                <p className="text-xs text-zinc-600">
+                                    Showing {visible.length} of {filtered.length}
+                                </p>
+                                <button
+                                    id="explore-load-more"
+                                    onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 text-sm text-zinc-300 hover:text-white font-medium transition-all duration-200"
+                                >
+                                    <ChevronDown className="w-4 h-4" />
+                                    Load more
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </main>
