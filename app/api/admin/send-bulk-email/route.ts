@@ -96,9 +96,9 @@ export async function POST(req: NextRequest) {
             batch.forEach((r) => results.push({ email: r.email, status: 'failed', error: message }))
         }
 
-        // Small pause between batches to respect rate limits
+        // 1.5s pause between batches — reduces Gmail receive-rate throttling
         if (i + BATCH_SIZE < recipients.length) {
-            await new Promise(r => setTimeout(r, 500))
+            await new Promise(r => setTimeout(r, 1500))
         }
     }
 
