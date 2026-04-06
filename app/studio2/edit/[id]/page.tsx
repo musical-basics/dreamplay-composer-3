@@ -358,7 +358,7 @@ export default function AdminEditor() {
             })
             const { duplicateConfigAction } = await import('@/app/actions/config')
             const newConfig = await duplicateConfigAction(configId, newTitle)
-            router.push(`/studio/edit/${newConfig.id}`)
+            router.push(`/studio2/edit/${newConfig.id}`)
         } catch (err) { console.error('Save As failed:', err) }
         finally { setSaving(false) }
     }

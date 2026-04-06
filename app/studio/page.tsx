@@ -40,7 +40,7 @@ export default function AdminDashboard() {
     const handleCreate = async () => {
         try {
             const config = await createNewConfig()
-            window.location.href = `/studio/edit/${config.id}`
+            window.location.href = `/studio2/edit/${config.id}`
         } catch (err) {
             console.error('Failed to create config:', err)
         }
@@ -194,7 +194,7 @@ export default function AdminDashboard() {
                                 {/* Title */}
                                 <div>
                                     <Link
-                                        href={`/studio/edit/${config.id}`}
+                                        href={`/studio2/edit/${config.id}`}
                                         className="font-medium text-white hover:text-purple-300 transition-colors"
                                     >
                                         {config.title || 'Untitled'}
@@ -243,7 +243,7 @@ export default function AdminDashboard() {
                                             ))
                                         }}
                                     />
-                                    <Link href={`/studio/edit/${config.id}`}>
+                                    <Link href={`/studio2/edit/${config.id}`}>
                                         <Button variant="ghost" size="sm" className="h-7 px-2 text-zinc-400 hover:text-white font-outfit">
                                             Edit
                                         </Button>
