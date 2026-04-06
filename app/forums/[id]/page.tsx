@@ -26,6 +26,8 @@ type Post = {
     created_at: string
 }
 
+type UserInfo = { name: string; avatarUrl?: string }
+
 const CATEGORY_STYLES: Record<string, string> = {
     general: 'bg-zinc-700/40 text-zinc-300',
     help: 'bg-blue-500/20 text-blue-300',
@@ -34,9 +36,11 @@ const CATEGORY_STYLES: Record<string, string> = {
     announcements: 'bg-red-500/20 text-red-300',
 }
 
-function UserHandle({ userId }: { userId: string }) {
-    const short = userId.slice(-6)
-    return <span className="font-medium text-zinc-300">@user-{short}</span>
+async function fetchUserInfo(ids: string[]): Promise<Record<string, UserInfo>> {
+    if (!ids.length) return {}
+    const res = await fetch(`/api/forums/users?ids=${ids.join(',')}`)
+    const data = await res.json()
+    return data.users ?? {}
 }
 
 export default function ThreadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +48,7 @@ export default function ThreadPage({ params }: { params: Promise<{ id: string }>
     const { isSignedIn } = useUser()
     const [thread, setThread] = useState<Thread | null>(null)
     const [posts, setPosts] = useState<Post[]>([])
+    const [users, setUsers] = useState<Record<string, UserInfo>>({})
     const [loading, setLoading] = useState(true)
     const [reply, setReply] = useState('')
     const [posting, setPosting] = useState(false)
@@ -52,10 +57,19 @@ export default function ThreadPage({ params }: { params: Promise<{ id: string }>
         Promise.all([
             fetch(`/api/forums/threads`).then(r => r.json()),
             fetch(`/api/forums/posts?thread_id=${id}`).then(r => r.json()),
-        ]).then(([threadsData, postsData]) => {
-            const found = (threadsData.threads ?? []).find((t: Thread) => t.id === id)
+        ]).then(async ([threadsData, postsData]) => {
+            const found: Thread | undefined = (threadsData.threads ?? []).find((t: Thread) => t.id === id)
+            const postsArr: Post[] = postsData.posts ?? []
             setThread(found ?? null)
-            setPosts(postsData.posts ?? [])
+            setPosts(postsArr)
+
+            // Batch-fetch real user names
+            const allIds = [...new Set([
+                ...(found ? [found.user_id] : []),
+                ...postsArr.map((p: Post) => p.user_id),
+            ])]
+            const info = await fetchUserInfo(allIds)
+            setUsers(info)
             setLoading(false)
         })
     }, [id])
@@ -70,11 +84,19 @@ export default function ThreadPage({ params }: { params: Promise<{ id: string }>
         })
         if (res.ok) {
             const data = await res.json()
-            setPosts(prev => [...prev, data.post])
+            const newPost: Post = data.post
+            setPosts(prev => [...prev, newPost])
+            // Fetch name for new poster if needed
+            if (!users[newPost.user_id]) {
+                const info = await fetchUserInfo([newPost.user_id])
+                setUsers(prev => ({ ...prev, ...info }))
+            }
             setReply('')
         }
         setPosting(false)
     }
+
+    const userName = (userId: string) => users[userId]?.name ?? `@user-${userId.slice(-6)}`
 
     if (loading) {
         return (
@@ -121,7 +143,9 @@ export default function ThreadPage({ params }: { params: Promise<{ id: string }>
                     </div>
                     <h1 className="text-xl font-bold">{thread.title}</h1>
                     <div className="text-xs text-zinc-500">
-                        Posted by <UserHandle userId={thread.user_id} /> · {formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}
+                        Posted by{' '}
+                        <span className="text-zinc-300 font-medium">{userName(thread.user_id)}</span>
+                        {' '}· {formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}
                     </div>
                     <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{thread.body}</p>
                 </div>
@@ -133,14 +157,9 @@ export default function ThreadPage({ params }: { params: Promise<{ id: string }>
                         <span>{posts.length} {posts.length === 1 ? 'reply' : 'replies'}</span>
                     </div>
                     {posts.map((post, i) => (
-                        <div
-                            key={post.id}
-                            className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-5 py-4 space-y-2"
-                        >
+                        <div key={post.id} className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-5 py-4 space-y-2">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-zinc-400">
-                                    <UserHandle userId={post.user_id} />
-                                </span>
+                                <span className="text-xs font-medium text-zinc-300">{userName(post.user_id)}</span>
                                 <span className="text-[11px] text-zinc-600">
                                     #{i + 1} · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                                 </span>

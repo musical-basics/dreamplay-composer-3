@@ -31,6 +31,7 @@ const CATEGORY_STYLES: Record<string, string> = {
 export default function ForumsPage() {
     const { isSignedIn } = useUser()
     const [threads, setThreads] = useState<Thread[]>([])
+    const [users, setUsers] = useState<Record<string, { name: string }>>({})
     const [loading, setLoading] = useState(true)
     const [category, setCategory] = useState('all')
     const [showNewThread, setShowNewThread] = useState(false)
@@ -46,7 +47,15 @@ export default function ForumsPage() {
             : `/api/forums/threads?category=${cat}`
         const res = await fetch(url)
         const data = await res.json()
-        setThreads(data.threads ?? [])
+        const fetched: Thread[] = data.threads ?? []
+        setThreads(fetched)
+        // Batch-fetch real user names for authors
+        const ids = [...new Set(fetched.map((t: Thread) => t.user_id))]
+        if (ids.length) {
+            fetch(`/api/forums/users?ids=${ids.join(',')}`)
+                .then(r => r.json())
+                .then(d => setUsers(d.users ?? {}))
+        }
         setLoading(false)
     }
 
@@ -195,7 +204,8 @@ export default function ForumsPage() {
                                         {thread.title}
                                     </p>
                                     <p className="text-xs text-zinc-500 mt-0.5">
-                                        {formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}
+                                        by <span className="text-zinc-400">{users[thread.user_id]?.name ?? `@user-${thread.user_id.slice(-6)}`}</span>
+                                        {' · '}{formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-zinc-500 shrink-0">
