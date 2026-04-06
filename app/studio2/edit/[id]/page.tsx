@@ -621,7 +621,7 @@ export default function AdminEditor() {
         } finally {
             setIsAiMapping(false);
         }
-    }, [parsedMidi, totalMeasures, config?.audio_url, setAnchors, setBeatAnchors, setIsLevel2Mode]);
+    }, [parsedMidi, totalMeasures, config?.audio_url, setAnchors, setBeatAnchors, setIsLevel2Mode, configId, subdivision]);
 
     // Auto-run Echolocation V5 once all data is ready and anchors haven't been mapped
     useEffect(() => {
