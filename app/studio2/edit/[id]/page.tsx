@@ -159,30 +159,17 @@ export default function AdminEditor() {
         if (!presignRes.ok) {
             throw new Error(presignPayload?.error || `Failed to get upload URL: ${presignRes.status}`)
         }
-        const { presignedUrl, finalFileUrl, originalPresignedUrl } = presignPayload as {
+        const { presignedUrl, finalFileUrl } = presignPayload as {
             presignedUrl: string
             finalFileUrl: string
-            originalPresignedUrl?: string
-            originalFileUrl?: string
         }
 
         // Step 2: PUT directly to R2 — no Vercel body limit
-        // Upload both the canonical file (score.xml/score.mxl) AND the original for admin inspection
-        const uploads: Promise<Response>[] = [
-            fetch(presignedUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': contentType },
-                body: file,
-            })
-        ]
-        if (originalPresignedUrl) {
-            uploads.push(fetch(originalPresignedUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type || contentType },
-                body: file,
-            }))
-        }
-        const [uploadRes] = await Promise.all(uploads)
+        const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: file,
+        })
         if (!uploadRes.ok) {
             throw new Error(`R2 upload failed: ${uploadRes.status}`)
         }
