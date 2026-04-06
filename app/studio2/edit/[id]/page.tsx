@@ -40,6 +40,7 @@ import { getAudioOffset } from '@/lib/engine/AudioHelpers'
 import { createClient } from '@supabase/supabase-js'
 import { debug } from '@/lib/debug'
 import { captureAndUploadThumbnail } from '@/lib/utils/captureAndUploadThumbnail'
+import { SupportModal } from '@/components/studio/SupportModal'
 
 export default function AdminEditor() {
     const params = useParams()
@@ -882,6 +883,9 @@ export default function AdminEditor() {
                                     <span>Falling Keys</span>
                                 </Button>
                             </div>
+
+                            {/* Support button — visible to all users, passes configId for admin context */}
+                            <SupportModal configId={configId} />
 
                             {/* Files Dropdown — visible to all users */}
                             <DropdownMenu>
