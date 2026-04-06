@@ -44,7 +44,7 @@ export const HomeHeader: React.FC = () => {
                                 Studio
                             </Link>
                             <Link
-                                href="/studio2/profile"
+                                href="/profile"
                                 className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors duration-200 rounded-lg hover:bg-zinc-800/50"
                             >
                                 Profile

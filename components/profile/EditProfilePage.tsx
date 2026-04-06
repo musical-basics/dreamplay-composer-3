@@ -3,11 +3,12 @@
 import * as React from 'react'
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save, Camera, Star } from 'lucide-react'
+import { Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save, Camera, Star } from 'lucide-react'
 import { getMyProfileAction, updateProfileAction, checkUsernameAvailabilityAction } from '@/app/actions/profile'
 import { fetchAllConfigs } from '@/app/actions/config'
 import { formatDisplayName } from '@/lib/utils/displayName'
 import { useUser } from '@clerk/nextjs'
+import { HomeHeader } from '@/components/home/HomeHeader'
 import type { SongConfig } from '@/lib/types'
 
 type ProfileData = {
@@ -242,22 +243,7 @@ export const EditProfilePage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white">
-            {/* Nav */}
-            <div className="sticky top-0 z-10 px-4 py-3 bg-zinc-950/80 backdrop-blur-lg border-b border-zinc-800/60">
-                <div className="max-w-2xl mx-auto flex items-center justify-between">
-                    <Link
-                        href="/studio"
-                        className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span>Back to Studio</span>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                        <Music className="w-4 h-4 text-purple-400" />
-                        <span className="text-xs text-zinc-500">DreamPlay Composer</span>
-                    </div>
-                </div>
-            </div>
+            <HomeHeader />
 
             <div className="max-w-2xl mx-auto px-4 py-12">
                 {/* Header */}
