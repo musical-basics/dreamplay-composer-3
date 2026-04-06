@@ -30,8 +30,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'RESEND_API_KEY is not configured' }, { status: 500 })
     }
 
-    // Personalise: replace {{name}} with the recipient's name
-    const recipientName = name?.trim() || 'there'
+    // Look up name server-side — don't trust client-passed name (may be stale/empty)
+    let recipientName = name?.trim() || ''
+    if (userId && !recipientName) {
+        try {
+            const { createClient } = await import('@supabase/supabase-js')
+            const sb = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                { db: { schema: 'composer' } }
+            )
+            const { data } = await sb
+                .from('users')
+                .select('first_name, last_name, email')
+                .eq('id', userId)
+                .single()
+            if (data) {
+                const fromDb = [data.first_name, data.last_name].filter(Boolean).join(' ')
+                recipientName = fromDb || data.email || ''
+            }
+        } catch {
+            // non-fatal
+        }
+    }
+    if (!recipientName) recipientName = 'there'
+
+    console.log('[send-email] recipientName for', to, '→', recipientName)
+
     const personalSubject = subject.replace(/\{\{name\}\}/g, recipientName)
     const personalBody = body.replace(/\{\{name\}\}/g, recipientName)
 
