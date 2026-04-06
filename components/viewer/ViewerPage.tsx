@@ -14,9 +14,10 @@ import { debug } from '@/lib/debug'
 
 interface ViewerPageProps {
     config: SongConfig
+    authorName?: string | null
 }
 
-export const ViewerPage: React.FC<ViewerPageProps> = ({ config }) => {
+export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) => {
     const [parsedMidi, setParsedMidi] = useState<ParsedMidi | null>(null)
     const [displayTime, setDisplayTime] = useState(0)
     const displayRafRef = useRef<number>(0)
@@ -203,9 +204,14 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config }) => {
                         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
                             <Music className="w-4 h-4 text-white" />
                         </div>
-                        <span className="text-white font-medium text-sm truncate max-w-[300px]">
-                            {config.title || 'Untitled'}
-                        </span>
+                        <div className="flex flex-col">
+                            <span className="text-white font-medium text-sm truncate max-w-[300px]">
+                                {config.title || 'Untitled'}
+                            </span>
+                            {authorName && (
+                                <span className="text-zinc-500 text-xs">@{authorName}</span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <Link

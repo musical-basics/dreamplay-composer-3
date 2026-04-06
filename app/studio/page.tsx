@@ -12,6 +12,7 @@ import { UserButton } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import { Button } from '@/components/ui/button'
 import { ThumbnailCaptureButton } from '@/components/home/ThumbnailCaptureButton'
+import { UsernameSettingsWidget } from '@/components/studio/UsernameSettingsWidget'
 import { fetchAllConfigs, createNewConfig, deleteConfigAction, togglePublishAction } from '@/app/actions/config'
 import type { SongConfig } from '@/lib/types'
 
@@ -100,7 +101,9 @@ export default function AdminDashboard() {
                             <p className="text-xs text-zinc-400">Manage song configurations</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
+                        <UsernameSettingsWidget />
+                        <div className="w-px h-5 bg-zinc-700" />
                         <UserButton
                             appearance={{ baseTheme: dark }}
                         />

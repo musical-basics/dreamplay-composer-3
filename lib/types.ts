@@ -107,6 +107,7 @@ export interface V5MapperState {
 /** A full song configuration (stored in DB) */
 export interface SongConfig {
     id: string
+    user_id?: string | null
     title: string
     audio_url: string
     xml_url: string

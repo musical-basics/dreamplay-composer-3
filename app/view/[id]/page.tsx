@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { ViewerPage } from '@/components/viewer/ViewerPage'
 import { fetchConfigByIdInternal } from '@/app/actions/config'
+import { getAuthorDisplayNameAction } from '@/app/actions/profile'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
@@ -25,5 +26,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         notFound()
     }
 
-    return <ViewerPage config={config} />
+    // Resolve author display name server-side (no flicker)
+    const authorName = config.user_id
+        ? await getAuthorDisplayNameAction(config.user_id)
+        : null
+
+    return <ViewerPage config={config} authorName={authorName} />
 }
