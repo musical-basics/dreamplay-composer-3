@@ -92,9 +92,9 @@ export function SupportModal({ configId }: Props) {
                                 </div>
                                 <p className="text-sm font-medium text-white">Message sent!</p>
                                 <p className="text-xs text-zinc-400">The team will review your issue shortly.</p>
-                                <Button size="sm" variant="outline" onClick={handleClose} className="mt-2 border-zinc-700 text-white hover:text-white">
+                                <button onClick={handleClose} className="mt-2 px-4 py-1.5 rounded-lg bg-white text-black text-sm font-medium hover:bg-zinc-100 transition-colors">
                                     Close
-                                </Button>
+                                </button>
                             </div>
                         ) : (
                             <div className="p-5 space-y-4">
