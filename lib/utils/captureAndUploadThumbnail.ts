@@ -14,8 +14,17 @@ export async function captureAndUploadThumbnail(
     try {
         const html2canvas = (await import('html2canvas-pro')).default
 
-        const target = document.getElementById(targetElementId) ?? document.body
-        
+        const target = document.getElementById(targetElementId)
+        if (!target) {
+            console.warn('[AutoThumbnail] Target element not found:', targetElementId)
+            return null
+        }
+        // Don't capture if the element is empty (score not loaded yet)
+        if (target.offsetWidth === 0 || target.offsetHeight === 0) {
+            console.warn('[AutoThumbnail] Target element has no size — score may not be loaded')
+            return null
+        }
+
         const canvas = await html2canvas(target as HTMLElement, {
             useCORS: true,
             allowTaint: false,
