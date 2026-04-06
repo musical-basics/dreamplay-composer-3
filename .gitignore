@@ -42,3 +42,5 @@ repomix-output.*
 test-5s.wav
 test-output.mid
 test-full-output.mid
+
+.debug-auth.json

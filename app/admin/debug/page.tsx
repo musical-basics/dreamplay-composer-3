@@ -2,6 +2,22 @@
 
 import { useEffect, useState, useMemo } from 'react'
 
+async function triggerDownload(url: string) {
+    const filename = url.split('/').pop()?.split('?')[0] || 'download'
+    const proxyUrl = `/api/asset?url=${encodeURIComponent(url)}`
+    const res = await fetch(proxyUrl)
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+    const blob = await res.blob()
+    const href = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = href
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(href)
+}
+
 type UserInfo = {
     email: string | null
     first_name: string | null
@@ -22,23 +38,32 @@ type Config = {
 }
 
 function AssetButton({ url, label, color }: { url: string | null; label: string; color: string }) {
+    const [downloading, setDownloading] = useState(false)
     if (!url) {
         return (
-            <span className={`px-2 py-1 rounded text-xs font-mono opacity-30 bg-neutral-800 text-neutral-500`}>
+            <span className="px-2 py-1 rounded text-xs font-mono opacity-30 bg-neutral-800 text-neutral-500">
                 no {label}
             </span>
         )
     }
+    const handleClick = async () => {
+        if (downloading) return
+        setDownloading(true)
+        try { await triggerDownload(url) }
+        catch (e) { console.error('Download failed', e) }
+        finally { setDownloading(false) }
+    }
     return (
-        <a
-            href={url}
-            download
-            target="_blank"
-            rel="noreferrer"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-opacity hover:opacity-80 ${color}`}
+        <button
+            onClick={handleClick}
+            disabled={downloading}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 cursor-pointer ${color}`}
         >
-            ↓ {label}
-        </a>
+            {downloading
+                ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block" />
+                : '↓'
+            } {label}
+        </button>
     )
 }
 
