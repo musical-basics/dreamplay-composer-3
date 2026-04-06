@@ -1,7 +1,7 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { getProfile, upsertProfile, getProfileByUsername, getPublishedConfigsByUserId } from '@/lib/services/profileService'
+import { getProfile, upsertProfile, getProfileByUsername, getPublishedConfigsByUserId, getProfilesByUserIds } from '@/lib/services/profileService'
 import { formatDisplayName, generateDisplayName } from '@/lib/utils/displayName'
 import type { UserProfile } from '@/lib/services/profileService'
 import type { SongConfig } from '@/lib/types'
@@ -139,4 +139,28 @@ export async function getCreatorProfileAction(username: string): Promise<{
     const displayName = formatDisplayName(userId ?? '', profile?.custom_username)
 
     return { profile, userId, displayName, compositions }
+}
+
+/**
+ * Batch-fetch author info (displayName + avatarUrl) for a list of userIds.
+ * Used by the homepage gallery to show creator chips on each card.
+ * Returns a plain object map (userId → { displayName, avatarUrl }) for client serialization.
+ */
+export async function getAuthorInfoForGalleryAction(
+    userIds: string[]
+): Promise<Record<string, { displayName: string; avatarUrl: string | null }>> {
+    const unique = [...new Set(userIds.filter(Boolean))]
+    if (unique.length === 0) return {}
+
+    const profileMap = await getProfilesByUserIds(unique)
+    const result: Record<string, { displayName: string; avatarUrl: string | null }> = {}
+
+    for (const userId of unique) {
+        const profile = profileMap.get(userId)
+        result[userId] = {
+            displayName: formatDisplayName(userId, profile?.custom_username),
+            avatarUrl: profile?.avatar_url ?? null,
+        }
+    }
+    return result
 }

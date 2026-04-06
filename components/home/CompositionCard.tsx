@@ -4,8 +4,14 @@ import Link from 'next/link'
 import { Music } from 'lucide-react'
 import type { SongConfig } from '@/lib/types'
 
+interface AuthorInfo {
+    displayName: string
+    avatarUrl: string | null
+}
+
 interface CompositionCardProps {
     config: SongConfig
+    authorInfo?: AuthorInfo
 }
 
 /**
@@ -20,7 +26,41 @@ function titleToHue(title: string): number {
     return Math.abs(hash) % 360
 }
 
-export const CompositionCard: React.FC<CompositionCardProps> = ({ config }) => {
+function AuthorChip({ authorInfo }: { authorInfo: AuthorInfo }) {
+    const initials = authorInfo.displayName
+        .split('-')
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+
+    return (
+        <Link
+            href={`/creator/${authorInfo.displayName}`}
+            onClick={(e) => e.preventDefault() /* let parent Link handle navigation; this chip stops it */}
+            className="group/author flex items-center gap-1.5 mt-1.5 w-fit"
+            title={`View ${authorInfo.displayName}'s profile`}
+            tabIndex={-1}
+        >
+            {authorInfo.avatarUrl ? (
+                <img
+                    src={authorInfo.avatarUrl}
+                    alt={authorInfo.displayName}
+                    className="w-4 h-4 rounded-full object-cover ring-1 ring-zinc-700"
+                />
+            ) : (
+                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[7px] font-bold text-white leading-none">{initials}</span>
+                </div>
+            )}
+            <span className="text-[11px] text-zinc-600 group-hover/author:text-purple-400 transition-colors duration-150 truncate max-w-[120px]">
+                @{authorInfo.displayName}
+            </span>
+        </Link>
+    )
+}
+
+export const CompositionCard: React.FC<CompositionCardProps> = ({ config, authorInfo }) => {
     const hue = titleToHue(config.title || 'Untitled')
     const hue2 = (hue + 40) % 360
     const hue3 = (hue + 80) % 360
@@ -87,9 +127,11 @@ export const CompositionCard: React.FC<CompositionCardProps> = ({ config }) => {
                 <h3 className="text-sm font-semibold text-white truncate group-hover:text-purple-200 transition-colors duration-200">
                     {config.title || 'Untitled'}
                 </h3>
-                <p className="text-xs text-zinc-500 mt-1">
-                    {formatDate(config.updated_at)}
-                </p>
+                {authorInfo ? (
+                    <AuthorChip authorInfo={authorInfo} />
+                ) : (
+                    <p className="text-xs text-zinc-500 mt-1">{formatDate(config.updated_at)}</p>
+                )}
             </div>
         </Link>
     )

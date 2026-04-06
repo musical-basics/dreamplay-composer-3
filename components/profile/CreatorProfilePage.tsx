@@ -1,8 +1,9 @@
 'use client'
 
 import * as React from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Youtube, Twitter, Instagram, Globe, Music, Eye } from 'lucide-react'
+import { ArrowLeft, Youtube, Twitter, Instagram, Globe, Music, Eye, Share2, Check } from 'lucide-react'
 import { CompositionCard } from '@/components/home/CompositionCard'
 import type { UserProfile } from '@/lib/services/profileService'
 import type { SongConfig } from '@/lib/types'
@@ -18,6 +19,8 @@ export const CreatorProfilePage: React.FC<CreatorProfilePageProps> = ({
     displayName,
     compositions,
 }) => {
+    const [copied, setCopied] = useState(false)
+
     const initials = displayName
         .split('-')
         .map((w) => w[0])
@@ -26,6 +29,24 @@ export const CreatorProfilePage: React.FC<CreatorProfilePageProps> = ({
         .toUpperCase()
 
     const totalViews = compositions.reduce((sum, c) => sum + (c.view_count ?? 0), 0)
+
+    const handleCopyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2500)
+        } catch {
+            // Fallback for older browsers
+            const input = document.createElement('input')
+            input.value = window.location.href
+            document.body.appendChild(input)
+            input.select()
+            document.execCommand('copy')
+            document.body.removeChild(input)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2500)
+        }
+    }
 
     const socialLinks = [
         profile.youtube_url && {
@@ -66,9 +87,32 @@ export const CreatorProfilePage: React.FC<CreatorProfilePageProps> = ({
                         <ArrowLeft className="w-4 h-4" />
                         <span>Gallery</span>
                     </Link>
-                    <div className="flex items-center gap-2">
-                        <Music className="w-4 h-4 text-purple-400" />
-                        <span className="text-xs text-zinc-500">DreamPlay Composer</span>
+                    <div className="flex items-center gap-3">
+                        {/* Share button */}
+                        <button
+                            onClick={handleCopyLink}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                                copied
+                                    ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-white bg-zinc-900/60'
+                            }`}
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    Link copied!
+                                </>
+                            ) : (
+                                <>
+                                    <Share2 className="w-3.5 h-3.5" />
+                                    Share profile
+                                </>
+                            )}
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <Music className="w-4 h-4 text-purple-400" />
+                            <span className="text-xs text-zinc-500">DreamPlay Composer</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -82,9 +126,19 @@ export const CreatorProfilePage: React.FC<CreatorProfilePageProps> = ({
                     <div className="relative flex flex-col items-center text-center gap-6">
                         {/* Avatar */}
                         <div className="relative">
-                            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-4 ring-zinc-900">
-                                <span className="text-3xl font-bold text-white">{initials}</span>
-                            </div>
+                            {profile.avatar_url ? (
+                                <div className="relative w-24 h-24">
+                                    <img
+                                        src={profile.avatar_url}
+                                        alt={displayName}
+                                        className="w-24 h-24 rounded-3xl object-cover shadow-2xl shadow-purple-500/20 ring-4 ring-zinc-900"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-4 ring-zinc-900">
+                                    <span className="text-3xl font-bold text-white">{initials}</span>
+                                </div>
+                            )}
                             <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
                                 <Music className="w-3.5 h-3.5 text-purple-400" />
                             </div>

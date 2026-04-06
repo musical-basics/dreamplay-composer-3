@@ -13,6 +13,7 @@ import type { SongConfig } from '@/lib/types'
 interface HomepageProps {
     compositions: SongConfig[]
     pollResults: PollResults
+    authorInfo: Record<string, { displayName: string; avatarUrl: string | null }>
 }
 
 const COLUMN_OPTIONS = [2, 3, 4] as const
@@ -28,7 +29,7 @@ const GRID_CLASSES: Record<number, string> = {
     4: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
 }
 
-export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollResults }) => {
+export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollResults, authorInfo }) => {
     const [columns, setColumns] = useState<number>(3)
     const [sortMode, setSortMode] = useState<SortMode>('recent')
     const [compositions, setCompositions] = useState<SongConfig[]>(initial)
@@ -165,7 +166,11 @@ export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollR
                         className={`${GRID_CLASSES[columns]} gap-4 sm:gap-5 transition-opacity duration-300 ${sortLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}
                     >
                         {compositions.map((config) => (
-                            <CompositionCard key={config.id} config={config} />
+                            <CompositionCard
+                                key={config.id}
+                                config={config}
+                                authorInfo={config.user_id ? authorInfo[config.user_id] : undefined}
+                            />
                         ))}
                     </div>
                 )}

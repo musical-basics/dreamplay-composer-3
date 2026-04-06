@@ -1,5 +1,6 @@
 import { Homepage } from '@/components/home/Homepage'
 import { fetchPublishedConfigs } from '@/app/actions/config'
+import { getAuthorInfoForGalleryAction } from '@/app/actions/profile'
 import { fetchPollResults } from '@/app/actions/poll'
 
 export const metadata = {
@@ -17,6 +18,9 @@ export default async function Page() {
         fetchPollResults(),
     ])
 
-    return <Homepage compositions={compositions} pollResults={pollResults} />
-}
+    // Batch-fetch author profiles for all compositions in one query
+    const userIds = compositions.map((c) => c.user_id).filter(Boolean) as string[]
+    const authorInfo = await getAuthorInfoForGalleryAction(userIds)
 
+    return <Homepage compositions={compositions} pollResults={pollResults} authorInfo={authorInfo} />
+}

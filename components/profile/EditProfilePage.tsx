@@ -1,9 +1,9 @@
 'use client'
 
 import * as React from 'react'
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save } from 'lucide-react'
+import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save, Camera } from 'lucide-react'
 import { getMyProfileAction, updateProfileAction, checkUsernameAvailabilityAction } from '@/app/actions/profile'
 import { formatDisplayName } from '@/lib/utils/displayName'
 import { useUser } from '@clerk/nextjs'
@@ -32,6 +32,9 @@ export const EditProfilePage: React.FC = () => {
     const [twitterUrl, setTwitterUrl] = useState('')
     const [instagramUrl, setInstagramUrl] = useState('')
     const [websiteUrl, setWebsiteUrl] = useState('')
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [avatarUploading, setAvatarUploading] = useState(false)
+    const avatarInputRef = useRef<HTMLInputElement>(null)
 
     // Username availability
     const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle')
@@ -52,6 +55,7 @@ export const EditProfilePage: React.FC = () => {
                 setTwitterUrl(data.twitter_url ?? '')
                 setInstagramUrl(data.instagram_url ?? '')
                 setWebsiteUrl(data.website_url ?? '')
+                setAvatarUrl(data.avatar_url ?? null)
             }
             setLoading(false)
         })
@@ -95,6 +99,41 @@ export const EditProfilePage: React.FC = () => {
         return () => clearTimeout(timer)
     }, [username, profile])
 
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const contentType = file.type || 'image/jpeg'
+
+        setAvatarUploading(true)
+        try {
+            // Get presigned URL
+            const res = await fetch(`/api/avatar-upload?contentType=${encodeURIComponent(contentType)}&ext=${ext}`)
+            if (!res.ok) throw new Error('Failed to get upload URL')
+            const { presignedUrl, finalFileUrl } = await res.json()
+
+            // Upload to R2
+            await fetch(presignedUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': contentType },
+                body: file,
+            })
+
+            // Cache-bust to force reload (R2 same-key update)
+            const bustedUrl = `${finalFileUrl}?t=${Date.now()}`
+            setAvatarUrl(bustedUrl)
+
+            // Save to profile immediately
+            await updateProfileAction({ avatar_url: finalFileUrl })
+        } catch (err) {
+            console.error('[Avatar] upload failed:', err)
+        } finally {
+            setAvatarUploading(false)
+            e.target.value = ''
+        }
+    }
+
     const handleSave = () => {
         if (usernameStatus === 'taken' || usernameStatus === 'checking') return
 
@@ -109,6 +148,7 @@ export const EditProfilePage: React.FC = () => {
                 twitter_url: twitterUrl.trim() || null,
                 instagram_url: instagramUrl.trim() || null,
                 website_url: websiteUrl.trim() || null,
+                // avatar is saved immediately on upload — no need to re-send here
             })
 
             if (result.error) {
@@ -225,15 +265,23 @@ export const EditProfilePage: React.FC = () => {
                 {/* Preview badge */}
                 {currentDisplayName && (
                     <div className="mb-8 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-lg flex-shrink-0">
-                            <span className="text-xl font-bold text-white">
-                                {currentDisplayName
-                                    .split('-')
-                                    .map((w: string) => w[0])
-                                    .slice(0, 2)
-                                    .join('')
-                                    .toUpperCase()}
-                            </span>
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-lg flex-shrink-0 relative">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="avatar" className="w-14 h-14 rounded-2xl object-cover" />
+                            ) : (
+                                <span className="text-xl font-bold text-white">
+                                    {currentDisplayName
+                                        .split('-')
+                                        .map((w: string) => w[0])
+                                        .slice(0, 2)
+                                        .join('')
+                                        .toUpperCase()}
+                                </span>
+                            )}
+                            <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity cursor-pointer rounded-2xl">
+                                <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={avatarUploading} />
+                                {avatarUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+                            </label>
                         </div>
                         <div>
                             <p className="font-semibold text-white">{currentDisplayName}</p>
@@ -248,6 +296,50 @@ export const EditProfilePage: React.FC = () => {
                 )}
 
                 <div className="space-y-6">
+                    {/* ── Avatar ── */}
+                    <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+                        <h2 className="text-sm font-semibold text-white">Profile Photo</h2>
+                        <div className="flex items-center gap-5">
+                            {/* Avatar preview */}
+                            <div className="relative group/avatar flex-shrink-0">
+                                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-lg">
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-2xl font-bold text-white">
+                                            {currentDisplayName
+                                                .split('-')
+                                                .map((w: string) => w[0])
+                                                .slice(0, 2)
+                                                .join('')
+                                                .toUpperCase()}
+                                        </span>
+                                    )}
+                                </div>
+                                {avatarUploading && (
+                                    <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/60">
+                                        <Loader2 className="w-6 h-6 animate-spin text-white" />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-300 text-sm font-medium cursor-pointer hover:border-purple-500/60 hover:text-white transition-all duration-200">
+                                    <Camera className="w-4 h-4" />
+                                    {avatarUploading ? 'Uploading...' : 'Upload Photo'}
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        onChange={handleAvatarUpload}
+                                        disabled={avatarUploading}
+                                    />
+                                </label>
+                                <p className="text-xs text-zinc-600">JPG, PNG, WebP or GIF · max 5 MB</p>
+                                <p className="text-xs text-zinc-600">Saved instantly on upload</p>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* ── Username ── */}
                     <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
                         <h2 className="text-sm font-semibold text-white">Username</h2>

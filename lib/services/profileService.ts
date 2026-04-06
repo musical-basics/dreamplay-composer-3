@@ -136,3 +136,30 @@ export async function getPublishedConfigsByUserId(
     }
     return (data || []) as SongConfig[]
 }
+
+/**
+ * Batch-fetch profiles for a list of userIds. Returns a map of userId → UserProfile.
+ * Missing userIds simply won't have an entry in the map.
+ */
+export async function getProfilesByUserIds(
+    userIds: string[]
+): Promise<Map<string, UserProfile>> {
+    if (userIds.length === 0) return new Map()
+
+    const sb = getSupabase()
+    const { data, error } = await sb
+        .from('profiles')
+        .select('*')
+        .in('user_id', userIds)
+
+    if (error) {
+        console.error('[profileService] getProfilesByUserIds error:', error.message)
+        return new Map()
+    }
+
+    const map = new Map<string, UserProfile>()
+    for (const row of data || []) {
+        map.set(row.user_id, row as UserProfile)
+    }
+    return map
+}
