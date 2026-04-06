@@ -6,10 +6,13 @@ import { HomeHeader } from './HomeHeader'
 import { CompositionCard } from './CompositionCard'
 import { CTAButton } from './CTAButton'
 import { fetchPublishedConfigsSortedAction } from '@/app/actions/config'
+import { FeaturePoll } from './FeaturePoll'
+import type { PollResults } from '@/app/actions/poll'
 import type { SongConfig } from '@/lib/types'
 
 interface HomepageProps {
     compositions: SongConfig[]
+    pollResults: PollResults
 }
 
 const COLUMN_OPTIONS = [2, 3, 4] as const
@@ -25,7 +28,7 @@ const GRID_CLASSES: Record<number, string> = {
     4: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
 }
 
-export const Homepage: React.FC<HomepageProps> = ({ compositions: initial }) => {
+export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollResults }) => {
     const [columns, setColumns] = useState<number>(3)
     const [sortMode, setSortMode] = useState<SortMode>('recent')
     const [compositions, setCompositions] = useState<SongConfig[]>(initial)
@@ -83,6 +86,9 @@ export const Homepage: React.FC<HomepageProps> = ({ compositions: initial }) => 
                     <CTAButton className="mx-auto" />
                 </div>
             </section>
+
+            {/* Feature Poll */}
+            <FeaturePoll initialResults={pollResults} />
 
             {/* Community Grid Section */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">

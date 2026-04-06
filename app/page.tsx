@@ -1,5 +1,6 @@
 import { Homepage } from '@/components/home/Homepage'
 import { fetchPublishedConfigs } from '@/app/actions/config'
+import { fetchPollResults } from '@/app/actions/poll'
 
 export const metadata = {
     title: 'DreamPlay Composer — See Music Come Alive',
@@ -11,7 +12,11 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-    const compositions = await fetchPublishedConfigs()
+    const [compositions, pollResults] = await Promise.all([
+        fetchPublishedConfigs(),
+        fetchPollResults(),
+    ])
 
-    return <Homepage compositions={compositions} />
+    return <Homepage compositions={compositions} pollResults={pollResults} />
 }
+
