@@ -267,7 +267,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             const beatAccumulator = new Map<number, { pitches: Set<number>, smallestDur: number, hasFermata: boolean }>()
 
             if (staves.length > 0) {
-                const pos = staves[0].PositionAndShape
+                const firstStave = staves[0]
+                if (!firstStave || !firstStave.PositionAndShape) return // OSMD not fully rendered yet — skip measure
+                const pos = firstStave.PositionAndShape
                 const absoluteX = (pos.AbsolutePosition.x + pos.BorderLeft) * xUnit
                 newMeasureXMap.set(measureNumber, absoluteX)
 
@@ -390,6 +392,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             const measureWholeLength = Math.max(0.0001, sig.numerator / sig.denominator)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             staves.forEach((staffMeasure: any) => {
+                if (!staffMeasure?.PositionAndShape) return // guard against partially-rendered staves
                 const measurePos = staffMeasure.PositionAndShape
                 const measureWidth = (measurePos.BorderRight - measurePos.BorderLeft) * xUnit
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
