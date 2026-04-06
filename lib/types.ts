@@ -111,6 +111,7 @@ export interface SongConfig {
     audio_url: string
     xml_url: string
     midi_url?: string | null
+    thumbnail_url?: string | null
     anchors: Anchor[]
     ai_anchors?: Anchor[] | null
     beat_anchors?: BeatAnchor[] | null

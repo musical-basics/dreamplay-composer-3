@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Outfit } from 'next/font/google'
 import { ClerkProvider } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import './globals.css'
@@ -14,9 +14,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 })
 
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+})
+
 export const metadata: Metadata = {
-  title: 'DreamPlay Composer 3 — Live Audio Transcription',
-  description: 'Live audio transcription and music visualization by DreamPlay.',
+  title: 'DreamPlay Composer — See Music Come Alive',
+  description: 'The world\'s first auto-mapping visualizer for live performances. Watch notes light up, fall, and dance in real time.',
 }
 
 export default function RootLayout({
@@ -25,12 +31,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider appearance={{ baseTheme: dark }} afterSignOutUrl="/login">
+    <ClerkProvider appearance={{ baseTheme: dark }} afterSignOutUrl="/">
       <html lang="en">
-        <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased bg-black text-white`}>
+        <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} font-sans antialiased bg-black text-white`}>
           {children}
         </body>
       </html>
     </ClerkProvider>
   )
 }
+

@@ -1,12 +1,14 @@
-import { auth } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
+import { Homepage } from '@/components/home/Homepage'
+import { fetchPublishedConfigs } from '@/app/actions/config'
+
+export const metadata = {
+    title: 'DreamPlay Composer — See Music Come Alive',
+    description:
+        'The world\'s first auto-mapping visualizer for live performances. Watch notes light up, fall, and dance in real time.',
+}
 
 export default async function Page() {
-    const { userId } = await auth()
+    const compositions = await fetchPublishedConfigs()
 
-    if (userId) {
-        redirect('/studio')
-    } else {
-        redirect('/login')
-    }
+    return <Homepage compositions={compositions} />
 }
