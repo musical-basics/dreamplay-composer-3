@@ -51,6 +51,7 @@ export default function AdminEditor() {
     const [config, setConfig] = useState<SongConfig | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [uploadingAudio, setUploadingAudio] = useState(false)
     const [parsedMidi, setParsedMidi] = useState<ParsedMidi | null>(null)
     const [title, setTitle] = useState('')
     const [isRecording, setIsRecording] = useState(false)
@@ -370,6 +371,7 @@ export default function AdminEditor() {
     const handleAudioUpload = async (fileOrEvent: File | React.ChangeEvent<HTMLInputElement>) => {
         const file = fileOrEvent instanceof File ? fileOrEvent : fileOrEvent.target.files?.[0]
         if (!file) return
+        setUploadingAudio(true)
         try {
             const { finalFileUrl } = await uploadConfigFile(file, 'audio')
             await updateConfigAction(configId, { audio_url: finalFileUrl })
@@ -383,6 +385,7 @@ export default function AdminEditor() {
             pm.setAudioElement(audio)
             audio.addEventListener('loadedmetadata', () => { pm.duration = audio.duration })
         } catch (err) { console.error(err) }
+        finally { setUploadingAudio(false) }
         if (!(fileOrEvent instanceof File)) fileOrEvent.target.value = ''
     }
 
@@ -738,6 +741,14 @@ export default function AdminEditor() {
 
     return (
         <div className="h-screen flex overflow-hidden bg-zinc-950 relative">
+            {/* Audio upload progress banner */}
+            {uploadingAudio && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl shadow-black/60 animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="w-4 h-4 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+                    <span className="text-sm font-medium text-white">Processing audio upload…</span>
+                    <span className="text-xs text-zinc-400">Please don&apos;t close this tab</span>
+                </div>
+            )}
             {/* Loading overlay — lets editor mount underneath while showing splash */}
             {showFancyLoading && (
                 <div className="absolute inset-0 z-[9999] flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm transition-opacity duration-500">
