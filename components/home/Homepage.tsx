@@ -88,102 +88,113 @@ export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollR
                 </div>
             </section>
 
-            {/* Feature Poll */}
-            <FeaturePoll initialResults={pollResults} />
-
-            {/* Community Grid Section */}
+            {/* Community + Poll side-by-side */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
-                {/* Section Header + Controls */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-white">Community Creations</h2>
-                        <p className="text-sm text-zinc-500 mt-1">
-                            Explore what the community has been creating
-                        </p>
-                    </div>
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* Sort Toggle */}
-                        <div className="flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
-                            <button
-                                id="sort-recent"
-                                onClick={() => handleSortChange('recent')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                    sortMode === 'recent'
-                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                                        : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
-                                }`}
-                            >
-                                <Clock className="w-3 h-3" />
-                                Recent
-                            </button>
-                            <button
-                                id="sort-popular"
-                                onClick={() => handleSortChange('popular')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                    sortMode === 'popular'
-                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                                        : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
-                                }`}
-                            >
-                                <TrendingUp className="w-3 h-3" />
-                                Most Viewed
-                            </button>
+                    {/* ── Main: Community Creations ── */}
+                    <div className="flex-1 min-w-0">
+                        {/* Section Header + Controls */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                            <div>
+                                <h2 className="text-xl sm:text-2xl font-bold text-white">Community Creations</h2>
+                                <p className="text-sm text-zinc-500 mt-1">
+                                    Explore what the community has been creating
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {/* Sort Toggle */}
+                                <div className="flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+                                    <button
+                                        id="sort-recent"
+                                        onClick={() => handleSortChange('recent')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                            sortMode === 'recent'
+                                                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                                : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                                        }`}
+                                    >
+                                        <Clock className="w-3 h-3" />
+                                        Recent
+                                    </button>
+                                    <button
+                                        id="sort-popular"
+                                        onClick={() => handleSortChange('popular')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                            sortMode === 'popular'
+                                                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                                : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                                        }`}
+                                    >
+                                        <TrendingUp className="w-3 h-3" />
+                                        Most Viewed
+                                    </button>
+                                </div>
+
+                                {/* Column Toggle — hidden on mobile */}
+                                <div className="hidden md:flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
+                                    {COLUMN_OPTIONS.map((col) => (
+                                        <button
+                                            key={col}
+                                            id={`grid-col-${col}`}
+                                            onClick={() => setColumns(col)}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                                columns === col
+                                                    ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                                    : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
+                                            }`}
+                                        >
+                                            <LayoutGrid className="w-3 h-3" />
+                                            {col}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Column Toggle — hidden on mobile, shown md+ */}
-                        <div className="hidden md:flex items-center gap-1 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1">
-                            {COLUMN_OPTIONS.map((col) => (
-                                <button
-                                    key={col}
-                                    id={`grid-col-${col}`}
-                                    onClick={() => setColumns(col)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                        columns === col
-                                            ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-                                            : 'text-zinc-500 hover:text-zinc-300 border border-transparent'
-                                    }`}
-                                >
-                                    <LayoutGrid className="w-3 h-3" />
-                                    {col}
-                                </button>
-                            ))}
+                        {/* Grid */}
+                        {compositions.length === 0 ? (
+                            <div className="text-center py-24 space-y-4">
+                                <div className="w-20 h-20 mx-auto rounded-2xl bg-zinc-800/50 flex items-center justify-center">
+                                    <Music className="w-10 h-10 text-zinc-600" />
+                                </div>
+                                <p className="text-zinc-400 text-lg font-medium">No compositions published yet</p>
+                                <p className="text-zinc-600 text-sm">Be the first to share your creation!</p>
+                            </div>
+                        ) : (
+                            <div
+                                className={`${GRID_CLASSES[columns]} gap-4 sm:gap-5 transition-opacity duration-300 ${sortLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}
+                            >
+                                {compositions.map((config) => (
+                                    <CompositionCard
+                                        key={config.id}
+                                        config={config}
+                                        authorInfo={config.user_id ? authorInfo[config.user_id] : undefined}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Bottom CTA */}
+                        {compositions.length > 0 && (
+                            <div className="mt-16 text-center">
+                                <p className="text-zinc-500 text-sm mb-4">
+                                    Want to create your own visualizations?
+                                </p>
+                                <CTAButton />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Sidebar: Poll ── */}
+                    <div className="w-full lg:w-80 shrink-0">
+                        <div className="lg:sticky lg:top-6">
+                            <FeaturePoll initialResults={pollResults} />
                         </div>
                     </div>
+
                 </div>
-
-                {/* Grid */}
-                {compositions.length === 0 ? (
-                    <div className="text-center py-24 space-y-4">
-                        <div className="w-20 h-20 mx-auto rounded-2xl bg-zinc-800/50 flex items-center justify-center">
-                            <Music className="w-10 h-10 text-zinc-600" />
-                        </div>
-                        <p className="text-zinc-400 text-lg font-medium">No compositions published yet</p>
-                        <p className="text-zinc-600 text-sm">Be the first to share your creation!</p>
-                    </div>
-                ) : (
-                    <div
-                        className={`${GRID_CLASSES[columns]} gap-4 sm:gap-5 transition-opacity duration-300 ${sortLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}
-                    >
-                        {compositions.map((config) => (
-                            <CompositionCard
-                                key={config.id}
-                                config={config}
-                                authorInfo={config.user_id ? authorInfo[config.user_id] : undefined}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {/* Bottom CTA */}
-                {compositions.length > 0 && (
-                    <div className="mt-16 text-center">
-                        <p className="text-zinc-500 text-sm mb-4">
-                            Want to create your own visualizations?
-                        </p>
-                        <CTAButton />
-                    </div>
-                )}
             </section>
         </div>
     )

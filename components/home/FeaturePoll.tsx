@@ -44,8 +44,7 @@ export function FeaturePoll({ initialResults }: FeaturePollProps) {
     }
 
     return (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-            <div className="relative rounded-2xl border border-purple-500/20 bg-gradient-to-br from-zinc-900/80 to-zinc-950 overflow-hidden shadow-2xl shadow-purple-900/20">
+        <div className="relative rounded-2xl border border-purple-500/20 bg-gradient-to-br from-zinc-900/80 to-zinc-950 overflow-hidden shadow-2xl shadow-purple-900/20">
                 {/* Ambient glow */}
                 <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-purple-500/10 rounded-full blur-[80px] pointer-events-none" />
                 <div className="absolute -bottom-12 right-12 w-64 h-32 bg-pink-500/8 rounded-full blur-[60px] pointer-events-none" />
@@ -183,7 +182,6 @@ export function FeaturePoll({ initialResults }: FeaturePollProps) {
                         )}
                     </div>
                 </div>
-            </div>
-        </section>
+        </div>
     )
 }
