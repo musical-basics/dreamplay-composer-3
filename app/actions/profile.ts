@@ -19,6 +19,7 @@ export async function getMyProfileAction(): Promise<{
     youtube_url: string | null
     website_url: string | null
     avatar_url: string | null
+    featured_config_id: string | null
 } | null> {
     const { userId } = await auth()
     if (!userId) return null
@@ -34,6 +35,7 @@ export async function getMyProfileAction(): Promise<{
         youtube_url: profile?.youtube_url ?? null,
         website_url: profile?.website_url ?? null,
         avatar_url: profile?.avatar_url ?? null,
+        featured_config_id: profile?.featured_config_id ?? null,
     }
 }
 
@@ -48,6 +50,7 @@ export async function updateProfileAction(fields: {
     youtube_url?: string | null
     website_url?: string | null
     avatar_url?: string | null
+    featured_config_id?: string | null
 }): Promise<{ error?: string; displayName?: string }> {
     const { userId } = await auth()
     if (!userId) return { error: 'Not authenticated' }
@@ -62,6 +65,7 @@ export async function updateProfileAction(fields: {
             youtube_url: fields.youtube_url,
             website_url: fields.website_url,
             avatar_url: fields.avatar_url,
+            featured_config_id: fields.featured_config_id,
         }
     )
     if (result.error) return { error: result.error }
@@ -135,7 +139,17 @@ export async function getCreatorProfileAction(username: string): Promise<{
         return null
     }
 
-    const compositions = userId ? await getPublishedConfigsByUserId(userId, 10) : []
+    const rawCompositions = userId ? await getPublishedConfigsByUserId(userId, 10) : []
+
+    // Pin the featured composition to the top
+    const featuredId = profile?.featured_config_id ?? null
+    const compositions = featuredId
+        ? [
+            ...rawCompositions.filter((c) => c.id === featuredId),
+            ...rawCompositions.filter((c) => c.id !== featuredId),
+          ]
+        : rawCompositions
+
     const displayName = formatDisplayName(userId ?? '', profile?.custom_username)
 
     return { profile, userId, displayName, compositions }

@@ -15,6 +15,7 @@ export interface UserProfile {
     youtube_url: string | null
     website_url: string | null
     avatar_url: string | null
+    featured_config_id: string | null
     created_at: string
     updated_at: string
 }
@@ -73,6 +74,7 @@ export async function upsertProfile(
         youtube_url?: string | null
         website_url?: string | null
         avatar_url?: string | null
+        featured_config_id?: string | null
     }
 ): Promise<{ error?: string }> {
     if (customUsername !== null) {

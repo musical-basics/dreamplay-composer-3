@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 type User = {
     id: string
@@ -17,6 +17,14 @@ type Result = {
     error?: string
 }
 
+function displayName(u: User) {
+    return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || u.id
+}
+
+function previewBody(body: string, name: string) {
+    return body.replace(/\{\{name\}\}/g, name || 'there')
+}
+
 export default function AdminEmailPage() {
     const [users, setUsers] = useState<User[]>([])
     const [loadingUsers, setLoadingUsers] = useState(true)
@@ -27,6 +35,8 @@ export default function AdminEmailPage() {
     const [progress, setProgress] = useState({ current: 0, total: 0 })
     const [results, setResults] = useState<Result[]>([])
     const [search, setSearch] = useState('')
+    const [showPreview, setShowPreview] = useState(false)
+    const bodyRef = useRef<HTMLTextAreaElement>(null)
 
     useEffect(() => {
         fetch('/api/admin/users')
@@ -61,6 +71,24 @@ export default function AdminEmailPage() {
         }
     }
 
+    // Insert {{name}} at cursor position in the textarea
+    const insertName = () => {
+        const ta = bodyRef.current
+        if (!ta) {
+            setBody(b => b + '{{name}}')
+            return
+        }
+        const start = ta.selectionStart
+        const end = ta.selectionEnd
+        const next = body.slice(0, start) + '{{name}}' + body.slice(end)
+        setBody(next)
+        // Restore cursor after the inserted token
+        setTimeout(() => {
+            ta.selectionStart = ta.selectionEnd = start + '{{name}}'.length
+            ta.focus()
+        }, 0)
+    }
+
     const handleSend = async () => {
         if (!subject.trim() || !body.trim()) return
         const targets = users.filter(u => selected.has(u.id) && u.email)
@@ -73,11 +101,12 @@ export default function AdminEmailPage() {
         for (let i = 0; i < targets.length; i++) {
             const user = targets[i]
             setProgress({ current: i + 1, total: targets.length })
+            const name = displayName(user)
             try {
                 const res = await fetch('/api/admin/send-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ to: user.email, subject, body }),
+                    body: JSON.stringify({ to: user.email, name, userId: user.id, subject, body }),
                 })
                 const data = await res.json()
                 if (!res.ok) throw new Error(data.error || 'Send failed')
@@ -94,8 +123,10 @@ export default function AdminEmailPage() {
     }
 
     const canSend = selected.size > 0 && subject.trim() && body.trim() && sendStatus !== 'sending'
-    const displayName = (u: User) =>
-        [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || u.id
+
+    // Preview: use first selected user for personalisation demo
+    const firstSelected = users.find(u => selected.has(u.id))
+    const previewName = firstSelected ? displayName(firstSelected) : 'Alex'
 
     return (
         <main className="min-h-screen bg-black text-white p-6">
@@ -105,7 +136,7 @@ export default function AdminEmailPage() {
                     <div>
                         <h1 className="text-2xl font-bold">Admin Email</h1>
                         <p className="text-sm text-neutral-400 mt-1">
-                            Send emails to users — fires one email per recipient
+                            Send emails to users — fires one email per recipient · use <code className="text-purple-400">{'{{name}}'}</code> for personalisation
                         </p>
                     </div>
                     {sendStatus === 'sending' && (
@@ -176,7 +207,26 @@ export default function AdminEmailPage() {
 
                     {/* Right: email composer */}
                     <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-5 space-y-4">
-                        <h2 className="text-sm font-semibold">Compose</h2>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-sm font-semibold">Compose</h2>
+                            <div className="flex items-center gap-2">
+                                {/* {{name}} chip */}
+                                <button
+                                    onClick={insertName}
+                                    title="Insert {{name}} at cursor — will be replaced with recipient's full name"
+                                    className="px-2 py-1 rounded-md bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 text-xs font-mono transition-colors border border-purple-500/30"
+                                >
+                                    {'{{name}}'}
+                                </button>
+                                {/* Preview toggle */}
+                                <button
+                                    onClick={() => setShowPreview(p => !p)}
+                                    className={`px-2 py-1 rounded-md text-xs transition-colors border ${showPreview ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' : 'text-neutral-400 border-neutral-700 hover:text-white'}`}
+                                >
+                                    {showPreview ? 'Hide preview' : 'Preview'}
+                                </button>
+                            </div>
+                        </div>
 
                         <div className="space-y-1">
                             <label className="text-xs text-neutral-400">Subject</label>
@@ -191,14 +241,28 @@ export default function AdminEmailPage() {
 
                         <div className="space-y-1">
                             <label className="text-xs text-neutral-400">Message</label>
-                            <textarea
-                                value={body}
-                                onChange={e => setBody(e.target.value)}
-                                placeholder="Write your message here…"
-                                rows={12}
-                                className="w-full px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500 resize-none font-mono"
-                            />
+                            {showPreview ? (
+                                <div className="w-full px-3 py-2.5 rounded-lg bg-neutral-900 border border-amber-500/30 text-sm text-white min-h-[200px] whitespace-pre-wrap leading-relaxed">
+                                    {previewBody(body, previewName) || <span className="text-neutral-600">Preview will appear here…</span>}
+                                    <div className="mt-6 pt-4 border-t border-neutral-700 text-xs text-neutral-500">
+                                        Previewing as: <span className="text-amber-400">{previewName}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <textarea
+                                    ref={bodyRef}
+                                    value={body}
+                                    onChange={e => setBody(e.target.value)}
+                                    placeholder={"Dear {{name}},\n\nWrite your message here…"}
+                                    rows={12}
+                                    className="w-full px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500 resize-none font-mono"
+                                />
+                            )}
                         </div>
+
+                        <p className="text-xs text-neutral-500">
+                            An unsubscribe link will be added automatically to every email.
+                        </p>
 
                         <button
                             onClick={handleSend}
