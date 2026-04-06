@@ -2,6 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
 const isPublicRoute = createRouteMatcher([
   '/',
+  '/view/(.*)',            // public viewer — anyone can watch published compositions
   '/login',
   '/login/(.*)',
   '/sign-in',
@@ -10,6 +11,9 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up/(.*)',
   '/api/clerk/webhook',
   '/api/clerk/webhook/(.*)',
+  '/api/view(.*)',         // view count API (called by viewer)
+  '/api/xml(.*)',          // XML proxy (called by viewer)
+  '/api/asset(.*)',        // asset proxy (called by viewer)
   '/studio/demo',
   '/studio/demo/(.*)',
   '/audit-render/(.*)',
