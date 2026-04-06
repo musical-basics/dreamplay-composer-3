@@ -39,7 +39,36 @@ export default function AdminEmailPage() {
     const [showPreview, setShowPreview] = useState(false)
     const [hideUnsubscribed, setHideUnsubscribed] = useState(false)
     const [togglingId, setTogglingId] = useState<string | null>(null)
+    const [draftSaved, setDraftSaved] = useState(false)
+    const [hasDraft, setHasDraft] = useState(false)
     const bodyRef = useRef<HTMLTextAreaElement>(null)
+
+    // Restore draft from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('admin_email_draft')
+            if (raw) {
+                const draft = JSON.parse(raw)
+                if (draft.subject) setSubject(draft.subject)
+                if (draft.body) setBody(draft.body)
+                setHasDraft(true)
+            }
+        } catch { /* ignore */ }
+    }, [])
+
+    const saveDraft = () => {
+        localStorage.setItem('admin_email_draft', JSON.stringify({ subject, body }))
+        setHasDraft(true)
+        setDraftSaved(true)
+        setTimeout(() => setDraftSaved(false), 2000)
+    }
+
+    const clearDraft = () => {
+        localStorage.removeItem('admin_email_draft')
+        setHasDraft(false)
+        setSubject('')
+        setBody('')
+    }
 
     useEffect(() => {
         fetch('/api/admin/users')
@@ -275,8 +304,29 @@ export default function AdminEmailPage() {
                     {/* Right: email composer */}
                     <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-5 space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold">Compose</h2>
                             <div className="flex items-center gap-2">
+                                <h2 className="text-sm font-semibold">Compose</h2>
+                                {hasDraft && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 font-medium">Draft</span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {/* Save Draft */}
+                                <button
+                                    onClick={saveDraft}
+                                    disabled={!subject.trim() && !body.trim()}
+                                    className="px-2 py-1 rounded-md text-xs transition-colors border border-blue-600/40 text-blue-400 hover:bg-blue-500/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    {draftSaved ? '✓ Saved!' : 'Save Draft'}
+                                </button>
+                                {hasDraft && (
+                                    <button
+                                        onClick={clearDraft}
+                                        className="px-2 py-1 rounded-md text-xs transition-colors border border-neutral-700 text-neutral-500 hover:text-red-400 hover:border-red-500/40"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                                 <button
                                     onClick={insertName}
                                     title="Insert {{name}} at cursor"
