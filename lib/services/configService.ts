@@ -203,6 +203,22 @@ export async function updateConfig(
     return data as SongConfig
 }
 
+export async function updateConfigInternal(
+    id: string,
+    updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font'>>
+): Promise<SongConfig> {
+    const sb = getSupabase()
+    const { data, error } = await sb
+        .from('configurations')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw new Error(`Failed to update config (admin): ${error.message}`)
+    return data as SongConfig
+}
+
 export async function deleteConfig(id: string, userId: string): Promise<void> {
     const sb = getSupabase()
     const { error } = await sb

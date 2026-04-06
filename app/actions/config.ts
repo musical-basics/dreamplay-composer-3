@@ -15,6 +15,7 @@ import {
     getConfigByIdInternal,
     createConfig,
     updateConfig,
+    updateConfigInternal,
     deleteConfig,
     togglePublish,
     saveAnchors,
@@ -54,10 +55,11 @@ export async function fetchPublishedConfigsSortedAction(
 
 export async function fetchConfigById(id: string): Promise<SongConfig | null> {
     const { userId } = await auth()
-    if (userId) {
-        return getConfigById(id, userId)
-    }
-    return getPublicConfigById(id)
+    if (!userId) return getPublicConfigById(id)
+    // Admins can access any config regardless of ownership
+    const adminIds = (process.env.ADMIN_USER_IDS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+    if (adminIds.includes(userId)) return getConfigByIdInternal(id)
+    return getConfigById(id, userId)
 }
 
 export async function fetchConfigByIdInternal(id: string): Promise<SongConfig | null> {
@@ -74,6 +76,9 @@ export async function updateConfigAction(
     updates: Partial<Pick<SongConfig, 'title' | 'audio_url' | 'xml_url' | 'midi_url' | 'anchors' | 'beat_anchors' | 'subdivision' | 'is_level2' | 'ai_anchors' | 'is_published' | 'music_font'>>
 ): Promise<SongConfig> {
     const user = await getAuthUser()
+    // Admins can update any config regardless of ownership
+    const adminIds = (process.env.ADMIN_USER_IDS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+    if (adminIds.includes(user.id)) return updateConfigInternal(id, updates)
     return updateConfig(id, updates, user.id)
 }
 

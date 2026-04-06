@@ -284,7 +284,7 @@ export default function AdminDebugPage() {
                                                         👁 View
                                                     </a>
                                                     <a
-                                                        href={`/studio2/edit/${c.id}`}
+                                                        href={`/admin/edit/${c.id}`}
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         className="px-2.5 py-1 rounded-lg bg-neutral-700/50 text-neutral-300 text-xs font-semibold hover:bg-neutral-700 transition-colors whitespace-nowrap"
