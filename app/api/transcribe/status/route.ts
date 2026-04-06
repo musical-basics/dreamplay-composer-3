@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTranscriptionQueue } from '@/lib/queue'
-import { wakeRailwayWorker } from '@/lib/railway'
-
-const STALE_WAIT_MS = Number(process.env.TRANSCRIPTION_STALE_WAIT_MS || 25 * 1000)
-
-async function wakeRailwayWorkerWithTimeout(timeoutMs: number): Promise<void> {
-    await Promise.race([
-        wakeRailwayWorker(),
-        new Promise<void>((_, reject) => {
-            setTimeout(() => reject(new Error(`Railway wake timed out after ${timeoutMs}ms`)), timeoutMs)
-        }),
-    ])
-}
 
 function isTransientFailure(failedReason?: string | null): boolean {
     if (!failedReason) return false
@@ -50,39 +38,18 @@ export async function GET(req: NextRequest) {
         }
 
         const state = await job.getState()
-
         const progress = job.progress as { percent?: number; stage?: string } | undefined
-        const now = Date.now()
-        const jobCreatedAt = job.timestamp || now
-        const jobAgeMs = Math.max(0, now - jobCreatedAt)
-        const staleWaiting = state === 'waiting' && jobAgeMs >= STALE_WAIT_MS
 
         let recovery: {
-            staleWakeTriggered?: boolean
-            staleWakeError?: string
             retriedAsJobId?: string
             retryReason?: string
             retryError?: string
         } | null = null
 
-        if (staleWaiting) {
-            recovery = { ...(recovery ?? {}), staleWakeTriggered: true }
-            try {
-                await wakeRailwayWorkerWithTimeout(4000)
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error)
-                recovery.staleWakeError = message
-                console.warn('[transcribe/status] stale job wake failed (non-fatal):', {
-                    jobId,
-                    ageMs: jobAgeMs,
-                    message,
-                })
-            }
-        }
-
+        // Auto-retry on transient GPU failures (5xx, connection resets, timeouts)
         if (state === 'failed' && isTransientFailure(job.failedReason)) {
             const retryJobId = `recover-${job.id}`
-            recovery = { ...(recovery ?? {}), retryReason: 'transient_failure_detected' }
+            recovery = { retryReason: 'transient_failure_detected' }
             try {
                 await queue.add(
                     'transcribe-job',
@@ -96,19 +63,11 @@ export async function GET(req: NextRequest) {
                         backoff: { type: 'exponential', delay: 5000 },
                     }
                 )
-
                 recovery.retriedAsJobId = retryJobId
                 console.log('[transcribe/status] queued recovery retry job', {
                     failedJobId: job.id,
                     retryJobId,
                 })
-
-                try {
-                    await wakeRailwayWorkerWithTimeout(4000)
-                } catch (error) {
-                    const message = error instanceof Error ? error.message : String(error)
-                    recovery.staleWakeError = message
-                }
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
                 if (message.toLowerCase().includes('jobid') && message.toLowerCase().includes('exists')) {
@@ -128,9 +87,6 @@ export async function GET(req: NextRequest) {
             jobId: job.id,
             state,
             progress: progress ?? null,
-            ageMs: jobAgeMs,
-            staleThresholdMs: STALE_WAIT_MS,
-            staleWaiting,
             recovery,
             data: job.data,
             returnvalue: job.returnvalue,
