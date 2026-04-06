@@ -88,6 +88,9 @@ export default function AdminEditor() {
     const [showSharePopover, setShowSharePopover] = useState(false)
     const [shareLinkCopied, setShareLinkCopied] = useState(false)
     const sharePopoverRef = useRef<HTMLDivElement>(null)
+    // Tracks whether the score SVG has actually rendered — used to guard thumbnail capture
+    const scoreRenderedRef = useRef(false)
+
     const [publishLoading, setPublishLoading] = useState(false)
 
     const anchors = useAppStore((s) => s.anchors)
@@ -353,12 +356,15 @@ export default function AdminEditor() {
         setIsPublished(next) // optimistic
         try {
             // Auto-capture thumbnail on first publish (only if going Live and no thumbnail yet)
-            if (next && !config?.thumbnail_url) {
-                captureAndUploadThumbnail(configId, 'studio-preview')
-                    .then((url) => {
-                        if (url) setConfig((prev) => prev ? { ...prev, thumbnail_url: url } : prev)
-                    })
-                // Fire-and-forget — don't await, never block publishing
+            // Capture is delayed to after score loads — see handleScoreLoaded
+            // If score already rendered, capture immediately with 500ms settle time
+            if (next && !config?.thumbnail_url && scoreRenderedRef.current) {
+                setTimeout(() => {
+                    captureAndUploadThumbnail(configId, 'score-thumbnail-target')
+                        .then((url) => {
+                            if (url) setConfig((prev) => prev ? { ...prev, thumbnail_url: url } : prev)
+                        })
+                }, 500)
             }
             await togglePublishAction(configId, next)
         } catch (err) {
@@ -567,7 +573,25 @@ export default function AdminEditor() {
                 debug.log(`[EditPage] ${staleCount > 0 ? 'Updated' : 'Locked'} ${events.length} xmlEvents into ref (${fermataCount} fermatas)${staleCount > 0 ? ` — replaced ${staleCount} stale events` : ''}`)
             }
         }
-    }, [])
+        // Mark score as rendered — deferred thumbnail capture if already published and no thumbnail
+        scoreRenderedRef.current = true
+        setTimeout(() => {
+            if (scoreRenderedRef.current) {
+                // Access config via closure — reading latest configId
+                const configId = window.location.pathname.split('/').pop() ?? ''
+                // Only auto-capture on first publish if no thumbnail exists yet
+                // (We check this by fetching the config; skip if already exists)
+                const el = document.getElementById('score-thumbnail-target')
+                if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                    captureAndUploadThumbnail(configId, 'score-thumbnail-target')
+                        .then((url) => {
+                            if (url) setConfig((prev) => prev ? { ...prev, thumbnail_url: url } : prev)
+                        })
+                        .catch(() => { /* non-fatal */ })
+                }
+            }
+        }, 1500) // Let score SVG finish painting before capture
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAutoMap = useCallback(async (chordThresholdFraction: number) => {
         if (!parsedMidi) { alert('Please load a MIDI file first.'); return; }

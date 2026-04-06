@@ -325,6 +325,7 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
 
             {/* Always mounted — use CSS display to hide (preserves refs + renderer) */}
             <div
+                id="score-thumbnail-target"
                 style={{ height: !showScore ? '0px' : showWaterfall ? `${topPercent}%` : '100%' }}
                 className={`relative overflow-hidden shrink-0 ${!showScore ? 'hidden' : ''}`}
             >

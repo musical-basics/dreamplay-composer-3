@@ -30,22 +30,22 @@ Value: v=spf1 include:_spf.resend.com ~all
 TTL:   Auto
 ```
 
-> **Bug encountered (Apr 2026):** Blast of 15 emails — 7 showed "Sent" in Resend,
-> never arrived anywhere (not inbox, not spam). Root cause: SPF record existed but
-> was misconfigured in TWO ways:
+> **Bug encountered (Apr 2026):** Blast of 15 emails — 7 showed "Sent" in Resend for
+> 13+ minutes, never arrived in inbox or spam initially. Root cause: **Gmail deferred
+> delivery**. Gmail accepted the emails at SMTP level but queued them in its ML-based
+> reputation filter because of bulk volume from an infrequently-used sender. After
+> ~4 hours, Gmail finished its assessment, confirmed the domain was legitimate, and
+> delivered all emails to inboxes.
 >
-> 1. **Wrong subdomain:** SPF was on host `send` (`send.dreamplay.studio`) instead
->    of `@` (root `dreamplay.studio`). Gmail looks up SPF on the root domain of the
->    sender address — the subdomain record was completely ignored.
+> Contributing factors:
+> 1. **Missing List-Unsubscribe headers** — Gmail trusts bulk senders more when
+>    RFC 8058 one-click unsubscribe headers are present. Now added to all routes.
+> 2. **Cold sender** — hadn't sent a blast in a while, so Gmail applied extra scrutiny.
 >
-> 2. **Wrong provider:** Value was `v=spf1 include:amazonses.com ~all` — a leftover
->    from a previous Amazon SES setup. The app had already migrated to Resend, but
->    the SPF record was never updated.
+> **Resolution:** All emails were eventually delivered. No DNS config error.
 >
-> **Fix:** Edit the existing record — change Host `send` → `@` and change value to
-> `v=spf1 include:_spf.resend.com ~all`.
->
-> ⚠️ If you ever migrate email providers again, update SPF immediately.
+> ⚠️ Expect 1-4 hour delays on new blasts until sender reputation is established.
+> Sending regularly (weekly/biweekly) builds reputation and reduces deferral time.
 
 ### 3. Add DMARC record (optional but recommended)
 DMARC ties SPF + DKIM together. Start with `p=none` (monitoring only):
