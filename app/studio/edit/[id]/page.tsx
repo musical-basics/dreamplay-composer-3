@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video } from 'lucide-react'
+import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { SplitScreenLayout } from '@/components/layout/SplitScreenLayout'
@@ -35,7 +35,7 @@ import { getPlaybackManager } from '@/lib/engine/PlaybackManager'
 import { parseMidiFile } from '@/lib/midi/parser'
 import type { SongConfig, ParsedMidi, BeatAnchor, XMLEvent, V5MapperState } from '@/lib/types'
 import { EXPORT_QUALITY_LABELS, type ExportQualityPreset } from '@/lib/types/renderJob'
-import { fetchConfigById, updateConfigAction } from '@/app/actions/config'
+import { fetchConfigById, updateConfigAction, togglePublishAction } from '@/app/actions/config'
 import { getAudioOffset } from '@/lib/engine/AudioHelpers'
 import { createClient } from '@supabase/supabase-js'
 import { debug } from '@/lib/debug'
@@ -72,6 +72,8 @@ export default function AdminEditor() {
     const [isExporting, setIsExporting] = useState(false)
     const [lastExportJobId, setLastExportJobId] = useState<string | null>(null)
     const [exportQualityPreset, setExportQualityPreset] = useState<ExportQualityPreset>('fast')
+    const [isPublished, setIsPublished] = useState(false)
+    const [publishLoading, setPublishLoading] = useState(false)
 
     const anchors = useAppStore((s) => s.anchors)
     const beatAnchors = useAppStore((s) => s.beatAnchors)
@@ -134,42 +136,33 @@ export default function AdminEditor() {
     }
 
     const uploadConfigFile = useCallback(async (file: File, fileType: 'audio' | 'xml' | 'midi') => {
-        const contentType = file.type || 'application/octet-stream'
+        const buffer = await file.arrayBuffer()
 
-        debug.log('[Studio] Requesting presigned URL for direct R2 upload', {
+        debug.log('[Studio] Uploading config file via server route', {
             configId,
             fileType,
             fileName: file.name,
             size: file.size,
-            contentType,
+            contentType: file.type,
         })
 
-        // Step 1: Get a presigned PUT URL from the server (tiny request, no body limit)
-        const params = new URLSearchParams({
-            configId,
-            fileType,
-            fileName: encodeURIComponent(file.name),
-            contentType,
+        const response = await fetch('/api/config-upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': file.type || 'application/octet-stream',
+                'x-config-id': configId,
+                'x-file-type': fileType,
+                'x-file-name': encodeURIComponent(file.name),
+            },
+            body: buffer,
         })
-        const presignRes = await fetch(`/api/config-upload?${params}`)
-        const presignPayload = await presignRes.json().catch(() => null)
-        if (!presignRes.ok) {
-            throw new Error(presignPayload?.error || `Failed to get upload URL: ${presignRes.status}`)
-        }
-        const { presignedUrl, finalFileUrl } = presignPayload as { presignedUrl: string; finalFileUrl: string }
 
-        // Step 2: PUT the file directly to R2 — bypasses Next.js/Vercel body limits entirely
-        debug.log('[Studio] Uploading directly to R2 via presigned URL', { finalFileUrl })
-        const uploadRes = await fetch(presignedUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': contentType },
-            body: file,
-        })
-        if (!uploadRes.ok) {
-            throw new Error(`Direct upload to R2 failed: ${uploadRes.status}`)
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+            throw new Error(payload?.error || `Upload failed: ${response.status}`)
         }
 
-        return { finalFileUrl }
+        return payload as { finalFileUrl: string }
     }, [configId])
 
 
@@ -181,6 +174,7 @@ export default function AdminEditor() {
                 if (data) {
                     setConfig(data)
                     setTitle(data.title)
+                    setIsPublished(!!data.is_published)
                     setReleaseTightness(0.2)
                     if (data.anchors) setAnchors(data.anchors)
                     if (data.beat_anchors) setBeatAnchors(data.beat_anchors)
@@ -322,6 +316,20 @@ export default function AdminEditor() {
             })
         } catch (err) { console.error('Failed to save:', err) }
         finally { setSaving(false) }
+    }
+
+    const handleTogglePublish = async () => {
+        setPublishLoading(true)
+        const next = !isPublished
+        setIsPublished(next) // optimistic
+        try {
+            await togglePublishAction(configId, next)
+        } catch (err) {
+            console.error('Failed to toggle publish:', err)
+            setIsPublished(!next) // revert on failure
+        } finally {
+            setPublishLoading(false)
+        }
     }
 
     const handleSaveAs = async () => {
@@ -794,6 +802,23 @@ export default function AdminEditor() {
                             <Button size="sm" variant="outline" onClick={handleSaveAs} disabled={saving} className="border-zinc-600 text-black hover:text-black">
                                 Save As
                             </Button>
+                            {/* Publish toggle */}
+                            <button
+                                id="studio-publish-toggle"
+                                onClick={handleTogglePublish}
+                                disabled={publishLoading}
+                                title={isPublished ? 'Click to unpublish (make private)' : 'Click to publish to community'}
+                                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all duration-200 border ${
+                                    isPublished
+                                        ? 'bg-green-900/30 text-green-400 border-green-700/50 hover:bg-green-900/50'
+                                        : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white hover:bg-zinc-700'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                                {isPublished
+                                    ? <Globe className="w-3.5 h-3.5" />
+                                    : <GlobeLock className="w-3.5 h-3.5" />}
+                                {publishLoading ? '...' : isPublished ? 'Live' : 'Draft'}
+                            </button>
                             <Button variant="ghost" size="sm" onClick={() => router.push('/studio')} className="text-zinc-400 hover:text-white">
                                 <FolderOpen className="w-3.5 h-3.5 mr-1" /> Open
                             </Button>
@@ -923,7 +948,7 @@ export default function AdminEditor() {
                                 variant="outline"
                                 size="sm"
                                 className="border-zinc-700 text-black hover:text-black h-8"
-                                onClick={handleStartCloudExport}
+                                onClick={() => handleStartCloudExport()}
                                 disabled={isExporting}
                             >
                                 <Video className="w-3.5 h-3.5 mr-1" />
