@@ -19,9 +19,8 @@ export async function wakeRailwayWorker(): Promise<void> {
   const environmentId = process.env.RAILWAY_ENVIRONMENT_ID
 
   if (!token || !serviceId || !environmentId) {
-    console.warn(
-      '[Railway] Missing env vars (RAILWAY_API_TOKEN, RAILWAY_WORKER_SERVICE_ID, RAILWAY_ENVIRONMENT_ID). Skipping worker wake.'
-    )
+    // Railway env vars not configured — worker wake skipped (non-fatal).
+    // This is expected in environments that don't use Railway (e.g. local dev, Vercel without Railway).
     return
   }
 
