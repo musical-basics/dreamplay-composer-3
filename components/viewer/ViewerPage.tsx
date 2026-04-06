@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Music } from 'lucide-react'
+import { CreatorChip } from '@/components/profile/CreatorChip'
 import { SplitScreenLayout } from '@/components/studio2/layout/SplitScreenLayoutStudio2'
 import { ViewerTransport } from '@/components/viewer/ViewerTransport'
 import { useAppStore } from '@/lib/store'
@@ -209,7 +210,7 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
                                 {config.title || 'Untitled'}
                             </span>
                             {authorName && (
-                                <span className="text-zinc-500 text-xs">@{authorName}</span>
+                                <CreatorChip authorName={authorName} />
                             )}
                         </div>
                     </div>

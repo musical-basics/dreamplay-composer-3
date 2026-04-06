@@ -1,0 +1,379 @@
+'use client'
+
+import * as React from 'react'
+import { useState, useEffect, useTransition } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save } from 'lucide-react'
+import { getMyProfileAction, updateProfileAction, checkUsernameAvailabilityAction } from '@/app/actions/profile'
+import { formatDisplayName } from '@/lib/utils/displayName'
+import { useUser } from '@clerk/nextjs'
+
+type ProfileData = {
+    userId: string
+    customUsername: string | null
+    displayName: string
+    bio: string | null
+    twitter_url: string | null
+    instagram_url: string | null
+    youtube_url: string | null
+    website_url: string | null
+    avatar_url: string | null
+}
+
+export const EditProfilePage: React.FC = () => {
+    const { user, isLoaded } = useUser()
+    const [profile, setProfile] = useState<ProfileData | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    // Form state
+    const [username, setUsername] = useState('')
+    const [bio, setBio] = useState('')
+    const [youtubeUrl, setYoutubeUrl] = useState('')
+    const [twitterUrl, setTwitterUrl] = useState('')
+    const [instagramUrl, setInstagramUrl] = useState('')
+    const [websiteUrl, setWebsiteUrl] = useState('')
+
+    // Username availability
+    const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle')
+    const [usernameError, setUsernameError] = useState('')
+
+    // Save state
+    const [isPending, startTransition] = useTransition()
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+    const [saveError, setSaveError] = useState('')
+
+    useEffect(() => {
+        getMyProfileAction().then((data) => {
+            if (data) {
+                setProfile(data)
+                setUsername(data.customUsername ?? '')
+                setBio(data.bio ?? '')
+                setYoutubeUrl(data.youtube_url ?? '')
+                setTwitterUrl(data.twitter_url ?? '')
+                setInstagramUrl(data.instagram_url ?? '')
+                setWebsiteUrl(data.website_url ?? '')
+            }
+            setLoading(false)
+        })
+    }, [])
+
+    // Debounced username availability check
+    useEffect(() => {
+        if (!profile) return
+        const trimmed = username.trim().toLowerCase()
+
+        if (!trimmed || trimmed === (profile.customUsername ?? '').toLowerCase()) {
+            setUsernameStatus('idle')
+            setUsernameError('')
+            return
+        }
+
+        if (trimmed.length < 3) {
+            setUsernameStatus('error')
+            setUsernameError('Must be at least 3 characters')
+            return
+        }
+
+        if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(trimmed)) {
+            setUsernameStatus('error')
+            setUsernameError('Only letters, numbers, hyphens. Must start and end with a letter/number.')
+            return
+        }
+
+        setUsernameStatus('checking')
+        const timer = setTimeout(async () => {
+            const result = await checkUsernameAvailabilityAction(trimmed)
+            if (result.available) {
+                setUsernameStatus('available')
+                setUsernameError('')
+            } else {
+                setUsernameStatus('taken')
+                setUsernameError('Username already taken')
+            }
+        }, 500)
+
+        return () => clearTimeout(timer)
+    }, [username, profile])
+
+    const handleSave = () => {
+        if (usernameStatus === 'taken' || usernameStatus === 'checking') return
+
+        setSaveStatus('idle')
+        setSaveError('')
+
+        startTransition(async () => {
+            const result = await updateProfileAction({
+                customUsername: username.trim() || null,
+                bio: bio.trim() || null,
+                youtube_url: youtubeUrl.trim() || null,
+                twitter_url: twitterUrl.trim() || null,
+                instagram_url: instagramUrl.trim() || null,
+                website_url: websiteUrl.trim() || null,
+            })
+
+            if (result.error) {
+                setSaveStatus('error')
+                setSaveError(result.error)
+            } else {
+                setSaveStatus('success')
+                setProfile((prev) =>
+                    prev
+                        ? {
+                            ...prev,
+                            customUsername: username.trim() || null,
+                            displayName: result.displayName ?? prev.displayName,
+                            bio: bio.trim() || null,
+                            youtube_url: youtubeUrl.trim() || null,
+                            twitter_url: twitterUrl.trim() || null,
+                            instagram_url: instagramUrl.trim() || null,
+                            website_url: websiteUrl.trim() || null,
+                        }
+                        : prev
+                )
+                setTimeout(() => setSaveStatus('idle'), 3000)
+            }
+        })
+    }
+
+    const currentDisplayName = profile
+        ? formatDisplayName(profile.userId, username.trim() || profile.customUsername)
+        : ''
+
+    const publicUrl = profile?.customUsername || username.trim()
+        ? `/creator/${username.trim() || profile?.customUsername}`
+        : null
+
+    if (loading || !isLoaded) {
+        return (
+            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            </div>
+        )
+    }
+
+    const InputField = ({
+        label,
+        icon: Icon,
+        value,
+        onChange,
+        placeholder,
+        hint,
+    }: {
+        label: string
+        icon: React.ElementType
+        value: string
+        onChange: (v: string) => void
+        placeholder?: string
+        hint?: string
+    }) => (
+        <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+            </label>
+            <input
+                type="text"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-200"
+            />
+            {hint && <p className="text-xs text-zinc-600">{hint}</p>}
+        </div>
+    )
+
+    return (
+        <div className="min-h-screen bg-zinc-950 text-white">
+            {/* Nav */}
+            <div className="sticky top-0 z-10 px-4 py-3 bg-zinc-950/80 backdrop-blur-lg border-b border-zinc-800/60">
+                <div className="max-w-2xl mx-auto flex items-center justify-between">
+                    <Link
+                        href="/studio"
+                        className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-sm"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Back to Studio</span>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Music className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs text-zinc-500">DreamPlay Composer</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-2xl mx-auto px-4 py-12">
+                {/* Header */}
+                <div className="mb-10">
+                    <h1 className="text-2xl font-bold text-white">My Profile</h1>
+                    <p className="mt-1.5 text-zinc-500 text-sm">
+                        Customize how you appear to other composers and viewers.
+                    </p>
+                    {publicUrl && (
+                        <div className="mt-3">
+                            <Link
+                                href={publicUrl}
+                                target="_blank"
+                                className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                            >
+                                <ExternalLink className="w-3 h-3" />
+                                View public profile
+                            </Link>
+                        </div>
+                    )}
+                </div>
+
+                {/* Preview badge */}
+                {currentDisplayName && (
+                    <div className="mb-8 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center shadow-lg flex-shrink-0">
+                            <span className="text-xl font-bold text-white">
+                                {currentDisplayName
+                                    .split('-')
+                                    .map((w: string) => w[0])
+                                    .slice(0, 2)
+                                    .join('')
+                                    .toUpperCase()}
+                            </span>
+                        </div>
+                        <div>
+                            <p className="font-semibold text-white">{currentDisplayName}</p>
+                            <p className="text-xs text-purple-400 font-mono mt-0.5">
+                                @{username.trim() || profile?.customUsername || currentDisplayName}
+                            </p>
+                            {bio.trim() && (
+                                <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{bio.trim()}</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-6">
+                    {/* ── Username ── */}
+                    <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+                        <h2 className="text-sm font-semibold text-white">Username</h2>
+
+                        <div className="space-y-1.5">
+                            <label className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                                <User className="w-3.5 h-3.5" />
+                                Custom Username
+                            </label>
+                            <div className="relative">
+                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600 text-sm select-none pointer-events-none">
+                                    @
+                                </div>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                    placeholder="your-username"
+                                    maxLength={24}
+                                    className="w-full pl-8 pr-10 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-200"
+                                />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    {usernameStatus === 'checking' && (
+                                        <Loader2 className="w-4 h-4 text-zinc-500 animate-spin" />
+                                    )}
+                                    {usernameStatus === 'available' && (
+                                        <Check className="w-4 h-4 text-emerald-400" />
+                                    )}
+                                    {(usernameStatus === 'taken' || usernameStatus === 'error') && (
+                                        <AlertCircle className="w-4 h-4 text-red-400" />
+                                    )}
+                                </div>
+                            </div>
+                            {usernameError && (
+                                <p className="text-xs text-red-400">{usernameError}</p>
+                            )}
+                            {usernameStatus === 'available' && (
+                                <p className="text-xs text-emerald-400">Username available!</p>
+                            )}
+                            <p className="text-xs text-zinc-600">
+                                Letters, numbers, and hyphens only · 3–24 characters
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* ── Bio ── */}
+                    <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+                        <h2 className="text-sm font-semibold text-white">About</h2>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Bio</label>
+                            <textarea
+                                value={bio}
+                                onChange={(e) => setBio(e.target.value.slice(0, 280))}
+                                placeholder="Tell people a bit about yourself and your music..."
+                                rows={4}
+                                className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-200 resize-none"
+                            />
+                            <p className="text-xs text-zinc-600 text-right">{bio.length}/280</p>
+                        </div>
+                    </div>
+
+                    {/* ── Socials ── */}
+                    <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+                        <h2 className="text-sm font-semibold text-white">Social Links</h2>
+                        <InputField
+                            label="YouTube"
+                            icon={Youtube}
+                            value={youtubeUrl}
+                            onChange={setYoutubeUrl}
+                            placeholder="https://youtube.com/@yourhandle"
+                        />
+                        <InputField
+                            label="Twitter / X"
+                            icon={Twitter}
+                            value={twitterUrl}
+                            onChange={setTwitterUrl}
+                            placeholder="https://x.com/yourhandle"
+                        />
+                        <InputField
+                            label="Instagram"
+                            icon={Instagram}
+                            value={instagramUrl}
+                            onChange={setInstagramUrl}
+                            placeholder="https://instagram.com/yourhandle"
+                        />
+                        <InputField
+                            label="Website"
+                            icon={Globe}
+                            value={websiteUrl}
+                            onChange={setWebsiteUrl}
+                            placeholder="https://yourwebsite.com"
+                        />
+                    </div>
+
+                    {/* ── Save ── */}
+                    {saveStatus === 'error' && (
+                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            {saveError}
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                        {saveStatus === 'success' ? (
+                            <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                                <Check className="w-4 h-4" />
+                                Profile saved!
+                            </div>
+                        ) : (
+                            <div />
+                        )}
+                        <button
+                            onClick={handleSave}
+                            disabled={isPending || usernameStatus === 'taken' || usernameStatus === 'checking'}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors duration-200 shadow-lg shadow-purple-500/20"
+                        >
+                            {isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Save className="w-4 h-4" />
+                            )}
+                            {isPending ? 'Saving...' : 'Save Profile'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}

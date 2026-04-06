@@ -7,7 +7,7 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2, Globe, GlobeLock, Music, Eye, RotateCw } from 'lucide-react'
+import { Plus, Trash2, Globe, GlobeLock, Music, Eye, RotateCw, User } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,13 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex items-center gap-4">
                         <UsernameSettingsWidget />
+                        <div className="w-px h-5 bg-zinc-700" />
+                        <Link href="/studio2/profile">
+                            <Button variant="outline" className="bg-zinc-900 text-white border-zinc-700 hover:bg-zinc-800 font-outfit gap-1.5">
+                                <User className="w-3.5 h-3.5" />
+                                My Profile
+                            </Button>
+                        </Link>
                         <div className="w-px h-5 bg-zinc-700" />
                         <UserButton
                             appearance={{ baseTheme: dark }}

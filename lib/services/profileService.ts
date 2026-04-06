@@ -4,10 +4,17 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import type { SongConfig } from '@/lib/types'
 
 export interface UserProfile {
     user_id: string
     custom_username: string | null
+    bio: string | null
+    twitter_url: string | null
+    instagram_url: string | null
+    youtube_url: string | null
+    website_url: string | null
+    avatar_url: string | null
     created_at: string
     updated_at: string
 }
@@ -38,7 +45,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
 }
 
 /**
- * Get a profile by custom username (for uniqueness checks).
+ * Get a profile by custom username (for uniqueness checks and public pages).
  */
 export async function getProfileByUsername(username: string): Promise<UserProfile | null> {
     const sb = getSupabase()
@@ -53,12 +60,20 @@ export async function getProfileByUsername(username: string): Promise<UserProfil
 }
 
 /**
- * Create or update the user's custom username.
+ * Create or update the user's profile fields.
  * Returns an error string if the username is taken or invalid.
  */
 export async function upsertProfile(
     userId: string,
-    customUsername: string | null
+    customUsername: string | null,
+    extras?: {
+        bio?: string | null
+        twitter_url?: string | null
+        instagram_url?: string | null
+        youtube_url?: string | null
+        website_url?: string | null
+        avatar_url?: string | null
+    }
 ): Promise<{ error?: string }> {
     if (customUsername !== null) {
         const trimmed = customUsername.toLowerCase().trim()
@@ -86,14 +101,38 @@ export async function upsertProfile(
                 user_id: userId,
                 custom_username: customUsername ? customUsername.toLowerCase().trim() : null,
                 updated_at: new Date().toISOString(),
+                ...extras,
             },
             { onConflict: 'user_id' }
         )
 
     if (error) {
         console.error('[profileService] upsertProfile error:', error.message)
-        return { error: 'Failed to save username. Please try again.' }
+        return { error: 'Failed to save profile. Please try again.' }
     }
 
     return {}
+}
+
+/**
+ * Get up to `limit` published compositions for a given userId.
+ */
+export async function getPublishedConfigsByUserId(
+    userId: string,
+    limit = 10
+): Promise<SongConfig[]> {
+    const sb = getSupabase()
+    const { data, error } = await sb
+        .from('configurations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_published', true)
+        .order('updated_at', { ascending: false })
+        .limit(limit)
+
+    if (error) {
+        console.error('[profileService] getPublishedConfigsByUserId error:', error.message)
+        return []
+    }
+    return (data || []) as SongConfig[]
 }
