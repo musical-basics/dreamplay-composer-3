@@ -284,8 +284,10 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         staves.forEach((staffMeasure: any) => {
+                            if (!staffMeasure?.PositionAndShape) return
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             staffMeasure.staffEntries.forEach((entry: any) => {
+                                if (!entry?.PositionAndShape) return
                                 const relX = entry.PositionAndShape.RelativePosition.x * xUnit
                                 const linearX = mStart + (mWidth * targetFraction)
                                 const actualEntryX = (staffMeasure.PositionAndShape.AbsolutePosition.x * xUnit) + relX
@@ -299,6 +301,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
 
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     staves.forEach((staffMeasure: any) => {
+                        if (!staffMeasure?.PositionAndShape) return
                         const staffMWidth = staffMeasure.PositionAndShape.BorderRight - staffMeasure.PositionAndShape.BorderLeft;
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         staffMeasure.staffEntries.forEach((entry: any) => {
@@ -314,6 +317,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                             });
                             if (isRest) return;
 
+                            if (!entry?.PositionAndShape) return
                             const relX = entry.PositionAndShape.RelativePosition.x;
                             let beatVal = 1;
 
@@ -398,6 +402,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 staffMeasure.staffEntries.forEach((entry: any) => {
                     if (!entry.graphicalVoiceEntries) return
+                    if (!entry?.PositionAndShape) return
                     const relX = entry.PositionAndShape.RelativePosition.x * xUnit
                     const relativeTimestamp = measureWidth > 0 ? relX / measureWidth : 0
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -453,6 +458,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
             let minX = Number.MAX_VALUE, maxX = Number.MIN_VALUE
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             staves.forEach((staff: any) => {
+                if (!staff?.PositionAndShape) return
                 const pos = staff.PositionAndShape
                 const absX = pos.AbsolutePosition.x
                 if (absX + pos.BorderLeft < minX) minX = absX + pos.BorderLeft
