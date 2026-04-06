@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock, RotateCw } from 'lucide-react'
+import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock, RotateCw, Share2, Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { SplitScreenLayout } from '@/components/studio2/layout/SplitScreenLayoutStudio2'
@@ -85,6 +85,9 @@ export default function AdminEditor() {
     const [lastExportJobId, setLastExportJobId] = useState<string | null>(null)
     const [exportQualityPreset, setExportQualityPreset] = useState<ExportQualityPreset>('fast')
     const [isPublished, setIsPublished] = useState(false)
+    const [showSharePopover, setShowSharePopover] = useState(false)
+    const [shareLinkCopied, setShareLinkCopied] = useState(false)
+    const sharePopoverRef = useRef<HTMLDivElement>(null)
     const [publishLoading, setPublishLoading] = useState(false)
 
     const anchors = useAppStore((s) => s.anchors)
@@ -874,6 +877,48 @@ export default function AdminEditor() {
                             <Button variant="ghost" size="sm" onClick={() => router.push('/studio')} className="text-zinc-400 hover:text-white">
                                 <FolderOpen className="w-3.5 h-3.5 mr-1" /> Open
                             </Button>
+                             {/* Share button + popover */}
+                            <div className="relative" ref={sharePopoverRef}>
+                                <button
+                                    onClick={() => setShowSharePopover(p => !p)}
+                                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold transition-all duration-200 bg-purple-600 hover:bg-purple-500 text-white shadow-[0_0_12px_rgba(147,51,234,0.4)] hover:shadow-[0_0_18px_rgba(147,51,234,0.6)]"
+                                >
+                                    <Share2 className="w-3.5 h-3.5" /> Share
+                                </button>
+                                {showSharePopover && (
+                                    <div
+                                        className="absolute left-0 top-full mt-2 z-50 w-80 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl p-4 space-y-3"
+                                        onMouseLeave={() => setShowSharePopover(false)}
+                                    >
+                                        <p className="text-xs font-semibold text-white">Share this composition</p>
+                                        {!isPublished && (
+                                            <p className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+                                                ⚠ Still a draft — only you can view this link
+                                            </p>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                readOnly
+                                                value={`${typeof window !== 'undefined' ? window.location.origin : 'https://composer.dreamplay.studio'}/view/${configId}`}
+                                                className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 font-mono focus:outline-none"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/view/${configId}`
+                                                    navigator.clipboard.writeText(url)
+                                                    setShareLinkCopied(true)
+                                                    setTimeout(() => setShareLinkCopied(false), 2000)
+                                                }}
+                                                className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-all"
+                                            >
+                                                {shareLinkCopied
+                                                    ? <><Check className="w-3.5 h-3.5" /> Copied!</>
+                                                    : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <Button
                                 variant="ghost"
                                 size="sm"
