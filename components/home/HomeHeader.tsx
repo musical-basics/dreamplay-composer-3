@@ -1,12 +1,27 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Music } from 'lucide-react'
+import { Music, User } from 'lucide-react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
+import { getMyProfileAction } from '@/app/actions/profile'
 
 export const HomeHeader: React.FC = () => {
     const { isSignedIn } = useUser()
+    const [profileUrl, setProfileUrl] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (!isSignedIn) return
+        getMyProfileAction().then((data) => {
+            if (data?.customUsername) {
+                setProfileUrl(`/creator/${data.customUsername}`)
+            } else {
+                // Fall back to edit page if no username set yet
+                setProfileUrl('/studio2/profile')
+            }
+        })
+    }, [isSignedIn])
 
     return (
         <header className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-xl">
@@ -44,7 +59,20 @@ export const HomeHeader: React.FC = () => {
                                 Studio
                             </Link>
                             <div className="ml-2">
-                                <UserButton appearance={{ baseTheme: dark }} />
+                                <UserButton appearance={{ baseTheme: dark }}>
+                                    <UserButton.MenuItems>
+                                        <UserButton.Link
+                                            label="My Profile"
+                                            labelIcon={<User className="w-4 h-4" />}
+                                            href={profileUrl ?? '/studio2/profile'}
+                                        />
+                                        <UserButton.Link
+                                            label="Edit Profile"
+                                            labelIcon={<User className="w-4 h-4" />}
+                                            href="/studio2/profile"
+                                        />
+                                    </UserButton.MenuItems>
+                                </UserButton>
                             </div>
                         </>
                     ) : (
