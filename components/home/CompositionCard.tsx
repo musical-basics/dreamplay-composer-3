@@ -112,6 +112,15 @@ export const CompositionCard: React.FC<CompositionCardProps> = ({ config, author
                 {/* Hover overlay shimmer */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
+                {/* Difficulty badge */}
+                {config.difficulty && (
+                    <span className={`absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-sm ${
+                        config.difficulty === 'beginner' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                        config.difficulty === 'intermediate' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                        'bg-red-500/20 text-red-300 border-red-500/30'
+                    }`}>{config.difficulty}</span>
+                )}
+
                 {/* Play icon on hover */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
                     <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-lg shadow-black/20">

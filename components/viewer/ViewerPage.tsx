@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Music } from 'lucide-react'
+import { ArrowLeft, Music, Share2, Copy, Check } from 'lucide-react'
 import { CreatorChip } from '@/components/profile/CreatorChip'
 import { SplitScreenLayout } from '@/components/studio2/layout/SplitScreenLayoutStudio2'
 import { ViewerTransport } from '@/components/viewer/ViewerTransport'
@@ -24,6 +24,7 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
     const displayRafRef = useRef<number>(0)
     const [loading, setLoading] = useState(true)
     const [loadingStage, setLoadingStage] = useState(0)
+    const [shareCopied, setShareCopied] = useState(false)
 
     const isPlaying = useAppStore((s) => s.isPlaying)
     const setPlaying = useAppStore((s) => s.setPlaying)
@@ -215,12 +216,29 @@ export const ViewerPage: React.FC<ViewerPageProps> = ({ config, authorName }) =>
                         </div>
                     </div>
                 </div>
-                <Link
-                    href="/login"
-                    className="px-4 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors duration-200 shadow-lg shadow-purple-500/20"
-                >
-                    Create Your Own
-                </Link>
+                <div className="flex items-center gap-2">
+                    {/* Share button */}
+                    <button
+                        onClick={() => {
+                            const url = `${window.location.origin}/view/${config.id}`
+                            navigator.clipboard.writeText(url).then(() => {
+                                setShareCopied(true)
+                                setTimeout(() => setShareCopied(false), 2000)
+                            })
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white border border-zinc-700 hover:border-zinc-500 bg-zinc-900/80 hover:bg-zinc-800 rounded-lg transition-all duration-200"
+                    >
+                        {shareCopied
+                            ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span></>
+                            : <><Share2 className="w-3.5 h-3.5" /> Share</>}
+                    </button>
+                    <Link
+                        href="/login"
+                        className="px-4 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors duration-200 shadow-lg shadow-purple-500/20"
+                    >
+                        Create Your Own
+                    </Link>
+                </div>
             </div>
 
             {/* Main visualization area */}
