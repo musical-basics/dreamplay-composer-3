@@ -92,15 +92,15 @@ export default function AdminDashboard() {
             {/* Header */}
             <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-lg sticky top-0 z-50">
                 <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <Link href="/" className="flex items-center gap-3 group">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center group-hover:opacity-80 transition-opacity">
                             <Music className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-semibold">Studio Dashboard</h1>
+                            <h1 className="text-lg font-semibold group-hover:text-purple-300 transition-colors">Studio Dashboard</h1>
                             <p className="text-xs text-zinc-400">Manage song configurations</p>
                         </div>
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-4">
                         <UsernameSettingsWidget />
                         <div className="w-px h-5 bg-zinc-700" />
