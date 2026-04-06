@@ -7,7 +7,7 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2, Globe, GlobeLock, Music, Eye } from 'lucide-react'
+import { Plus, Trash2, Globe, GlobeLock, Music, Eye, RotateCw } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 import { Button } from '@/components/ui/button'
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
                 ) : (
                     <div className="grid gap-4">
                         {/* Table header */}
-                        <div className="grid grid-cols-[60px_1fr_90px_60px_120px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+                        <div className="grid grid-cols-[60px_1fr_90px_60px_155px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
                             <span>Cover</span>
                             <span>Title</span>
                             <span>Status</span>
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
                         {configs.map((config) => (
                             <div
                                 key={config.id}
-                                className="grid grid-cols-[60px_1fr_90px_60px_120px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
+                                className="grid grid-cols-[60px_1fr_90px_60px_155px] gap-4 items-center px-4 py-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 transition-colors"
                             >
                                 {/* Cover / Thumbnail */}
                                 <div className="w-10 h-10 rounded overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
@@ -243,6 +243,11 @@ export default function AdminDashboard() {
                                             ))
                                         }}
                                     />
+                                    <Link href={`/studio2/edit/${config.id}?remap=true`} title="Regenerate anchor mapping">
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-zinc-500 hover:text-amber-400 font-outfit">
+                                            <RotateCw className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </Link>
                                     <Link href={`/studio2/edit/${config.id}`}>
                                         <Button variant="ghost" size="sm" className="h-7 px-2 text-zinc-400 hover:text-white font-outfit">
                                             Edit

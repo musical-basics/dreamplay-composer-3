@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock } from 'lucide-react'
+import { Save, ArrowLeft, Music, FileMusic, FileAudio, SkipBack, Play, Pause, Square, FolderOpen, ChevronLeft, ChevronRight, Settings, Activity, Piano, Video, Globe, GlobeLock, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { SplitScreenLayout } from '@/components/studio2/layout/SplitScreenLayoutStudio2'
@@ -49,6 +49,7 @@ export default function AdminEditor() {
     const searchParams = useSearchParams()
     const configId = params?.id as string
     const isAdmin = searchParams.get('admin') === 'true'
+    const forceRemap = searchParams.get('remap') === 'true'
 
     // ── Auth guard: redirect unauthenticated users to login ──────────────
     const { isLoaded: authLoaded, isSignedIn } = useUser()
@@ -198,9 +199,17 @@ export default function AdminEditor() {
                     setTitle(data.title)
                     setIsPublished(!!data.is_published)
                     setReleaseTightness(0.2)
-                    if (data.anchors) setAnchors(data.anchors)
-                    if (data.beat_anchors) setBeatAnchors(data.beat_anchors)
-                    if (data.is_level2) setIsLevel2Mode(data.is_level2)
+                    if (forceRemap) {
+                        // ?remap=true: ignore saved anchors so auto-run effect fires fresh
+                        setAnchors([{ measure: 1, time: 0 }])
+                        setBeatAnchors([])
+                        setIsLevel2Mode(false)
+                        hasAutoMappedRef.current = false
+                    } else {
+                        if (data.anchors) setAnchors(data.anchors)
+                        if (data.beat_anchors) setBeatAnchors(data.beat_anchors)
+                        if (data.is_level2) setIsLevel2Mode(data.is_level2)
+                    }
                     if (data.subdivision) setSubdivision(data.subdivision)
                 }
             } catch (err) {
@@ -210,7 +219,7 @@ export default function AdminEditor() {
             }
         }
         load()
-    }, [configId, setAnchors, setBeatAnchors, setIsLevel2Mode, setSubdivision, setReleaseTightness])
+    }, [configId, forceRemap, setAnchors, setBeatAnchors, setIsLevel2Mode, setSubdivision, setReleaseTightness])
 
     // -----------------------------------------------------------------------
     // Supabase Realtime: watch for midi_url to be populated by AI transcription
@@ -874,6 +883,28 @@ export default function AdminEditor() {
                             >
                                 <Settings className="w-3 h-3" />
                                 <span>Config</span>
+                            </Button>
+                            {/* Regenerate Mapping button */}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    if (!parsedMidi || totalMeasures === 0 || xmlEvents.length === 0) {
+                                        alert('Wait for MIDI and sheet music to finish loading first.')
+                                        return
+                                    }
+                                    if (!confirm('Regenerate anchor mapping? This will overwrite your current anchors.')) return
+                                    hasAutoMappedRef.current = false
+                                    setAnchors([{ measure: 1, time: 0 }])
+                                    setBeatAnchors([])
+                                    setIsLevel2Mode(false)
+                                }}
+                                disabled={isAiMapping}
+                                className="h-7 px-2 flex items-center gap-1.5 text-[9px] uppercase font-bold tracking-wider transition-all text-amber-500 hover:text-amber-300 hover:bg-amber-500/10"
+                                title="Regenerate Echolocation V5 anchor mapping"
+                            >
+                                <RotateCw className={`w-3 h-3 ${isAiMapping ? 'animate-spin' : ''}`} />
+                                <span>{isAiMapping ? 'Mapping...' : 'Remap'}</span>
                             </Button>
                         </div>
 
