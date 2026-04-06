@@ -44,9 +44,10 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        // MXL files are ZIP-compressed MusicXML — must be returned as binary
-        const isMxl = target.toLowerCase().endsWith('.mxl') ||
-            (upstreamResponse.headers.get('content-type') || '').includes('application/vnd.recordare.musicxml')
+        // Only treat as MXL if the URL actually ends in .mxl (binary ZIP format)
+        // A .xml or .musicxml file is always plain text XML — never interpret as MXL
+        const urlLower = target.toLowerCase()
+        const isMxl = urlLower.endsWith('.mxl')
 
         if (isMxl) {
             const buffer = await upstreamResponse.arrayBuffer()

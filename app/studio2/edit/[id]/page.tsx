@@ -141,9 +141,19 @@ export default function AdminEditor() {
             configId, fileType, fileName: file.name, size: file.size,
         })
 
+        // Normalize content type — browser file.type for .xml can be empty,
+        // 'text/xml', or 'application/vnd.recordare.musicxml' which causes OSMD to
+        // treat plain XML as a ZIP-compressed MXL file. Force a safe default.
+        const getContentType = (f: File, type: 'audio' | 'xml' | 'midi'): string => {
+            if (type === 'xml') return 'application/xml'
+            if (type === 'midi') return 'audio/midi'
+            return f.type || 'application/octet-stream'
+        }
+        const contentType = getContentType(file, fileType)
+
         // Step 1: Get a presigned PUT URL from the server (bypasses Vercel 4.5MB limit)
         const presignRes = await fetch(
-            `/api/config-upload?configId=${configId}&fileType=${fileType}&fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type || 'application/octet-stream')}`
+            `/api/config-upload?configId=${configId}&fileType=${fileType}&fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(contentType)}`
         )
         const presignPayload = await presignRes.json().catch(() => null)
         if (!presignRes.ok) {
@@ -154,7 +164,7 @@ export default function AdminEditor() {
         // Step 2: PUT directly to R2 — no Vercel body limit
         const uploadRes = await fetch(presignedUrl, {
             method: 'PUT',
-            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            headers: { 'Content-Type': contentType },
             body: file,
         })
         if (!uploadRes.ok) {
