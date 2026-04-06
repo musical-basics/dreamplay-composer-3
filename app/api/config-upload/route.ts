@@ -10,7 +10,7 @@ const s3 = createR2Client()
 // -----------------------------------------------------------------------
 // GET /api/config-upload?configId=...&fileType=...&fileName=...&contentType=...
 // Returns a presigned PUT URL for direct browser-to-R2 upload.
-// This bypasses the Next.js 4MB body limit for large audio files.
+// Also returns a second presigned URL to preserve the original file for debugging.
 // -----------------------------------------------------------------------
 export async function GET(req: NextRequest) {
     try {
@@ -34,28 +34,38 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Configuration not found' }, { status: 404 })
         }
 
-        const ext = originalFileName.split('.').pop() || 'bin'
+        const ext = (originalFileName.split('.').pop() || 'bin').toLowerCase()
         let fileKey = ''
         if (fileType === 'audio') fileKey = `audio.${ext}`
-        else if (fileType === 'xml') fileKey = 'score.xml'
+        else if (fileType === 'xml') {
+            // .mxl files are ZIP-compressed — must keep the .mxl extension so OSMD
+            // knows to decompress them. Plain .xml / .musicxml become score.xml.
+            fileKey = ext === 'mxl' ? 'score.mxl' : 'score.xml'
+        }
         else if (fileType === 'midi') fileKey = `midi.${ext}`
         else return NextResponse.json({ error: 'Invalid fileType' }, { status: 400 })
 
         const objectKey = `users/${userId}/configs/${configId}/${fileKey}`
+        // Always store the original unmodified file alongside for admin debugging
+        const originalKey = `users/${userId}/configs/${configId}/score_original.${ext}`
 
-        const presignedUrl = await getSignedUrl(
-            s3,
-            new PutObjectCommand({
+        const [presignedUrl, originalPresignedUrl] = await Promise.all([
+            getSignedUrl(s3, new PutObjectCommand({
                 Bucket: process.env.R2_BUCKET_NAME!,
                 Key: objectKey,
+                ContentType: ext === 'mxl' ? 'application/vnd.recordare.musicxml' : contentType,
+            }), { expiresIn: 600 }),
+            getSignedUrl(s3, new PutObjectCommand({
+                Bucket: process.env.R2_BUCKET_NAME!,
+                Key: originalKey,
                 ContentType: contentType,
-            }),
-            { expiresIn: 600 } // 10 minutes
-        )
+            }), { expiresIn: 600 }),
+        ])
 
         const finalFileUrl = getR2PublicUrl(objectKey)
-        console.log('[config-upload] presigned:generated', { objectKey, finalFileUrl })
-        return NextResponse.json({ presignedUrl, finalFileUrl })
+        const originalFileUrl = getR2PublicUrl(originalKey)
+        console.log('[config-upload] presigned:generated', { objectKey, originalKey, finalFileUrl })
+        return NextResponse.json({ presignedUrl, finalFileUrl, originalPresignedUrl, originalFileUrl })
     } catch (error) {
         console.error('[config-upload] Failed to generate presigned URL', error)
         const message = error instanceof Error ? error.message : 'Failed to generate upload URL'
