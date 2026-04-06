@@ -39,6 +39,7 @@ import { fetchConfigById, updateConfigAction, togglePublishAction } from '@/app/
 import { getAudioOffset } from '@/lib/engine/AudioHelpers'
 import { createClient } from '@supabase/supabase-js'
 import { debug } from '@/lib/debug'
+import { captureAndUploadThumbnail } from '@/lib/utils/captureAndUploadThumbnail'
 
 export default function AdminEditor() {
     const params = useParams()
@@ -318,6 +319,14 @@ export default function AdminEditor() {
         const next = !isPublished
         setIsPublished(next) // optimistic
         try {
+            // Auto-capture thumbnail on first publish (only if going Live and no thumbnail yet)
+            if (next && !config?.thumbnail_url) {
+                captureAndUploadThumbnail(configId, 'studio-preview')
+                    .then((url) => {
+                        if (url) setConfig((prev) => prev ? { ...prev, thumbnail_url: url } : prev)
+                    })
+                // Fire-and-forget — don't await, never block publishing
+            }
             await togglePublishAction(configId, next)
         } catch (err) {
             console.error('Failed to toggle publish:', err)
@@ -1139,7 +1148,7 @@ export default function AdminEditor() {
                     )}
                 </div>
 
-                <div className="flex-1 overflow-hidden">
+                <div id="studio-preview" className="flex-1 overflow-hidden">
                     <SplitScreenLayout
                         audioUrl={config?.audio_url || null}
                         xmlUrl={config?.xml_url || null}

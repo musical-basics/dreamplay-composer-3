@@ -321,9 +321,6 @@ export const SplitScreenLayout: React.FC<SplitScreenLayoutProps> = ({
 
     return (
         <div ref={containerFullRef} className="flex flex-col h-full w-full overflow-hidden bg-zinc-950">
-            <div className="pointer-events-none absolute left-3 top-3 z-[1300] rounded-md border border-cyan-400/60 bg-cyan-950/75 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-200 shadow-[0_0_10px_rgba(34,211,238,0.25)]">
-                Studio2 Isolated Chain
-            </div>
             {children}
 
             {/* Always mounted — use CSS display to hide (preserves refs + renderer) */}
