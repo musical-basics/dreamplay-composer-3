@@ -3,10 +3,12 @@
 import * as React from 'react'
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save, Camera } from 'lucide-react'
+import { ArrowLeft, Music, Check, Loader2, ExternalLink, Youtube, Twitter, Instagram, Globe, User, AlertCircle, Save, Camera, Star } from 'lucide-react'
 import { getMyProfileAction, updateProfileAction, checkUsernameAvailabilityAction } from '@/app/actions/profile'
+import { fetchAllConfigs } from '@/app/actions/config'
 import { formatDisplayName } from '@/lib/utils/displayName'
 import { useUser } from '@clerk/nextjs'
+import type { SongConfig } from '@/lib/types'
 
 type ProfileData = {
     userId: string
@@ -18,6 +20,7 @@ type ProfileData = {
     youtube_url: string | null
     website_url: string | null
     avatar_url: string | null
+    featured_config_id: string | null
 }
 
 export const EditProfilePage: React.FC = () => {
@@ -36,6 +39,10 @@ export const EditProfilePage: React.FC = () => {
     const [avatarUploading, setAvatarUploading] = useState(false)
     const avatarInputRef = useRef<HTMLInputElement>(null)
 
+    // Featured composition
+    const [featuredConfigId, setFeaturedConfigId] = useState<string | null>(null)
+    const [publishedCompositions, setPublishedCompositions] = useState<SongConfig[]>([])
+
     // Username availability
     const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle')
     const [usernameError, setUsernameError] = useState('')
@@ -46,7 +53,10 @@ export const EditProfilePage: React.FC = () => {
     const [saveError, setSaveError] = useState('')
 
     useEffect(() => {
-        getMyProfileAction().then((data) => {
+        Promise.all([
+            getMyProfileAction(),
+            fetchAllConfigs(),
+        ]).then(([data, configs]) => {
             if (data) {
                 setProfile(data)
                 setUsername(data.customUsername ?? '')
@@ -56,7 +66,10 @@ export const EditProfilePage: React.FC = () => {
                 setInstagramUrl(data.instagram_url ?? '')
                 setWebsiteUrl(data.website_url ?? '')
                 setAvatarUrl(data.avatar_url ?? null)
+                setFeaturedConfigId(data.featured_config_id ?? null)
             }
+            // Only keep published compositions
+            setPublishedCompositions(configs.filter((c) => c.is_published))
             setLoading(false)
         })
     }, [])
@@ -132,6 +145,11 @@ export const EditProfilePage: React.FC = () => {
             setAvatarUploading(false)
             e.target.value = ''
         }
+    }
+
+    const handleFeaturedChange = async (configId: string | null) => {
+        setFeaturedConfigId(configId)
+        await updateProfileAction({ featured_config_id: configId })
     }
 
     const handleSave = () => {
@@ -400,6 +418,42 @@ export const EditProfilePage: React.FC = () => {
                             <p className="text-xs text-zinc-600 text-right">{bio.length}/280</p>
                         </div>
                     </div>
+
+                    {/* ── Featured Composition ── */}
+                    {publishedCompositions.length > 0 && (
+                        <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+                            <div className="flex items-center gap-2">
+                                <Star className="w-4 h-4 text-amber-400" />
+                                <h2 className="text-sm font-semibold text-white">Featured Composition</h2>
+                            </div>
+                            <p className="text-xs text-zinc-500">
+                                Pin one composition to the top of your public profile.
+                            </p>
+                            <div className="relative">
+                                <select
+                                    value={featuredConfigId ?? ''}
+                                    onChange={(e) => handleFeaturedChange(e.target.value || null)}
+                                    className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-white appearance-none focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all duration-200 pr-10 cursor-pointer"
+                                >
+                                    <option value="">— No featured composition —</option>
+                                    {publishedCompositions.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.title || 'Untitled'}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Star className={`w-4 h-4 ${featuredConfigId ? 'text-amber-400' : 'text-zinc-600'}`} />
+                                </div>
+                            </div>
+                            {featuredConfigId && (
+                                <p className="text-xs text-amber-400/80 flex items-center gap-1">
+                                    <Star className="w-3 h-3" />
+                                    Saved — appears pinned at the top of your profile
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Socials ── */}
                     <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">

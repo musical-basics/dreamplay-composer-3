@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Youtube, Twitter, Instagram, Globe, Music, Eye, Share2, Check } from 'lucide-react'
+import { ArrowLeft, Youtube, Twitter, Instagram, Globe, Music, Eye, Share2, Check, Star } from 'lucide-react'
 import { CompositionCard } from '@/components/home/CompositionCard'
 import type { UserProfile } from '@/lib/services/profileService'
 import type { SongConfig } from '@/lib/types'
@@ -229,9 +229,20 @@ export const CreatorProfilePage: React.FC<CreatorProfilePageProps> = ({
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {compositions.map((config) => (
-                                <CompositionCard key={config.id} config={config} />
-                            ))}
+                            {compositions.map((config, i) => {
+                                const isFeatured = profile.featured_config_id && config.id === profile.featured_config_id
+                                return (
+                                    <div key={config.id} className="relative">
+                                        {isFeatured && (
+                                            <div className="absolute -top-2 -left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 shadow-lg shadow-amber-500/10">
+                                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                                <span className="text-[10px] font-semibold text-amber-300 tracking-wide">Featured</span>
+                                            </div>
+                                        )}
+                                        <CompositionCard config={config} />
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
