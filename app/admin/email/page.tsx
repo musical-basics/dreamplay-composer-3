@@ -146,42 +146,47 @@ export default function AdminEmailPage() {
 
     const handleSend = async () => {
         if (!subject.trim() || !body.trim()) return
-        const targets = users.filter(u => selected.has(u.id) && u.email)
+        const targets = users.filter(u => selected.has(u.id) && u.email && !u.email_unsubscribed)
+        const skipped = users.filter(u => selected.has(u.id) && u.email_unsubscribed)
         if (targets.length === 0) return
 
         setSendStatus('sending')
         setProgress({ current: 0, total: targets.length })
-        setResults([])
+        setResults(skipped.map(u => ({ email: u.email!, status: 'skipped' as const })))
 
-        for (let i = 0; i < targets.length; i++) {
-            const user = targets[i]
-            setProgress({ current: i + 1, total: targets.length })
+        try {
+            const res = await fetch('/api/admin/send-bulk-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipients: targets.map(u => ({
+                        email: u.email!,
+                        name: displayName(u),
+                        userId: u.id,
+                    })),
+                    subject,
+                    body,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Bulk send failed')
 
-            // Skip opted-out users
-            if (user.email_unsubscribed) {
-                setResults(prev => [...prev, { email: user.email!, status: 'skipped' }])
-                continue
-            }
-
-            const name = displayName(user)
-            try {
-                const res = await fetch('/api/admin/send-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ to: user.email, name, userId: user.id, subject, body }),
-                })
-                const data = await res.json()
-                if (!res.ok) throw new Error(data.error || 'Send failed')
-                setResults(prev => [...prev, { email: user.email!, status: 'sent' }])
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Unknown error'
-                setResults(prev => [...prev, { email: user.email!, status: 'failed', error: message }])
-            }
-            if (i < targets.length - 1) await new Promise(r => setTimeout(r, 300))
+            setResults(prev => [
+                ...prev,
+                ...(data.results as { email: string; status: 'sent' | 'failed'; error?: string }[]),
+            ])
+            setProgress({ current: targets.length, total: targets.length })
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown error'
+            setResults(prev => [
+                ...prev,
+                ...targets.map(u => ({ email: u.email!, status: 'failed' as const, error: message })),
+            ])
         }
 
         setSendStatus('done')
     }
+
 
     const canSend = selected.size > 0 && subject.trim() && body.trim() && sendStatus !== 'sending'
     const firstSelected = users.find(u => selected.has(u.id))
