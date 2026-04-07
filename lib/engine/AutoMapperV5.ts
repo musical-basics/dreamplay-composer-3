@@ -1152,6 +1152,77 @@ function scoreHypothesis(
 }
 
 /**
+ * Macro-Beat Decimator for Polyrhythms & Dense Passages
+ *
+ * Call this AFTER resolveRepeats() and BEFORE initV5().
+ *
+ * If a measure contains an excessive number of sub-beat events with tiny
+ * inter-event gaps (e.g., 4:3 or 3:2 polyrhythms, cadenzas), the causal
+ * V5 window tracker will thrash — it tries to search for 1–2 pitches in a
+ * stream of 28+ densely-packed notes, overflows consecutiveMisses, and drifts.
+ *
+ * Solution: for dense measures we intentionally keep only the structural
+ * "Macro Beats" (beat 1.0, 2.0, 3.0 …) and discard everything in between.
+ * V5 then sees exactly 2 events for Fantaisie Impromptu M5 instead of 13,
+ * beatsElapsed jumps to 1.0 per step, the search window widens to ~1-2 s,
+ * and the mapper naturally absorbs performer rubato.
+ *
+ * The ScrollView already interpolates linearly between beat anchors, so the
+ * visual cursor sweeps smoothly through dense measures without jarring snaps.
+ *
+ * Thresholds (tunable): events > 10 AND minGap ≤ 0.08 beats.
+ *   - Normal 4/4 16th notes:   gap = 0.25  → NOT dense (passes through)
+ *   - Fantaisie 4:3 polyrhythm: gap ≈ 0.041 → DENSE (decimated to macro beats)
+ *   - 32nd notes in 4/4:        gap = 0.125  → NOT dense (passes through)
+ *
+ * Pure function — does not mutate inputs.
+ */
+export function simplifyDenseMeasures(xmlEvents: XMLEvent[]): XMLEvent[] {
+    const result: XMLEvent[] = []
+    const byMeasure = new Map<number, XMLEvent[]>()
+
+    for (const e of xmlEvents) {
+        if (!byMeasure.has(e.measure)) byMeasure.set(e.measure, [])
+        byMeasure.get(e.measure)!.push(e)
+    }
+
+    for (const [, events] of byMeasure.entries()) {
+        // Calculate smallest inter-event beat gap
+        let minGap = Infinity
+        for (let i = 1; i < events.length; i++) {
+            const gap = events[i].beat - events[i - 1].beat
+            if (gap > 0 && gap < minGap) minGap = gap
+        }
+
+        // Dense detection: too many events AND micro-gaps indicating cross-rhythm
+        const isDense = events.length > 10 && minGap <= 0.08
+
+        if (isDense) {
+            // Keep only integer beat boundaries: beat 1.0, 2.0, 3.0 …
+            // Epsilon of 0.001 guards against floating-point beat values like 0.999
+            const macroEvents = events.filter(e => Math.abs(e.beat % 1) < 0.001)
+
+            if (macroEvents.length > 0) {
+                result.push(...macroEvents)
+            } else {
+                // Paranoia fallback: at minimum keep the measure downbeat
+                result.push(events[0])
+            }
+
+            debug.log(
+                `[simplifyDenseMeasures] M${events[0].measure}: DENSE ` +
+                `(${events.length} events, minGap=${minGap.toFixed(4)}) → ` +
+                `kept ${macroEvents.length > 0 ? macroEvents.length : 1} macro beat(s)`
+            )
+        } else {
+            result.push(...events)
+        }
+    }
+
+    return result
+}
+
+/**
  * Repeat-aware XMLEvent pre-processor.
  *
  * Call this BEFORE initV5(). It detects repeat sections (marked with

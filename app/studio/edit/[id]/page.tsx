@@ -558,7 +558,7 @@ export default function AdminEditor() {
 
         setIsAiMapping(true);
         try {
-            const { initV5, stepV5, resolveRepeats } = await import('@/lib/engine/AutoMapperV5');
+            const { initV5, stepV5, resolveRepeats, simplifyDenseMeasures } = await import('@/lib/engine/AutoMapperV5');
 
             // Detect audio peak for initial offset (optional but helpful)
             let audioOffset = 0;
@@ -568,8 +568,12 @@ export default function AdminEditor() {
                 console.warn('[AutoMap] Audio peak detection failed, using 0s offset');
             }
 
-            // Pre-process: expand repeat sections if the MIDI follows them
+            // Pre-process 1: expand repeat sections if the MIDI follows them
             resolvedXmlEventsRef.current = resolveRepeats(xmlEventsRef.current, parsedMidi.notes);
+
+            // Pre-process 2: decimate polyrhythm & dense measures to macro beats only
+            // Prevents V5 window-tracker from thrashing on 4:3 cross-rhythms (e.g. Fantaisie Impromptu M5+)
+            resolvedXmlEventsRef.current = simplifyDenseMeasures(resolvedXmlEventsRef.current);
 
             let state = initV5(parsedMidi.notes, resolvedXmlEventsRef.current, audioOffset, chordThresholdFraction);
 
