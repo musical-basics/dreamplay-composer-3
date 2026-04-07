@@ -100,6 +100,14 @@ export interface V5MapperState {
     /** Whether we just passed a fermata beat and need fresh scanning */
     afterFermata?: boolean
     /**
+     * Set after processing one or more isTiedContinuation events.
+     * The next real (non-tied) event should do a FRESH forward scan instead of
+     * relying on the AQNTL window — the dead-reckoned anchor time from the tied
+     * measures is unreliable when AQNTL hasn't been calibrated yet (e.g. the
+     * Fantaisie Impromptu opening where AQNTL=0.5 but actual tempo is ~1.16s/beat).
+     */
+    afterTiedSequence?: boolean
+    /**
      * Secondary scan cursor used during stray-note rejection retry loops.
      * Advances past rejected stray clusters WITHOUT permanently moving midiCursor,
      * so subsequent scans for the same XML event can still find valid notes

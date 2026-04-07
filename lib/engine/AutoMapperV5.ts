@@ -407,8 +407,67 @@ export function stepV5(
             straySkipCursor: undefined,
             // consecutiveMisses unchanged — tied notes are not mapping failures
             recentOutcomes: pushOutcome(state.recentOutcomes, 'dead-reckon'),
+            afterTiedSequence: true, // Next real event must do a fresh scan
             status: nextIndex >= xmlEvents.length ? 'done' : 'running',
         }
+    }
+
+    // ─── AFTER-TIED-SEQUENCE FRESH SCAN ───
+    // We just processed one or more tied-continuation events. AQNTL has NOT been
+    // calibrated from real note matches yet, so the dead-reckoned expectedTime is
+    // unreliable. Do an unconstrained forward pitch scan from midiCursor to find
+    // where the performer actually played this event.
+    // Classic case: Fantaisie Impromptu M1+M2 are tied G# pedal tones; AQNTL=0.5
+    // dead-reckons M3 to ~2.3s but the actual notes land at ~4.96s.
+    if (state.afterTiedSequence && !xmlEvent.isTiedContinuation) {
+        const freshMatch = findFirstPitchMatch(xmlEvent.pitches, sorted, state.midiCursor)
+        v5LogFor(xmlEvent, `[V5 AFTER-TIE] fresh scan from cursor=${state.midiCursor}: ${freshMatch ? `match at ${freshMatch.time.toFixed(3)}s` : 'no match'}`)
+
+        if (freshMatch) {
+            const chordThreshold = Math.max(0.100, state.aqntl * state.chordThresholdFraction)
+            const chord = extractChord(xmlEvent.pitches, sorted, freshMatch.index, freshMatch.time, chordThreshold)
+
+            // Calibrate AQNTL from the first real match after tied opening.
+            // Use the first xmlEvent's globalBeat as origin (it's always 0 for the first event).
+            const firstEventGlobalBeat = xmlEvents[0]?.globalBeat ?? 0
+            const firstAnchorTime = state.anchors[0]?.time ?? 0
+            const totalBeatsFromStart = xmlEvent.globalBeat - firstEventGlobalBeat
+            const totalTimeFromStart = freshMatch.time - firstAnchorTime
+            if (totalBeatsFromStart > 0 && totalTimeFromStart > 0) {
+                const calibratedAqntl = totalTimeFromStart / totalBeatsFromStart
+                // Blend with prior AQNTL (trust new data heavily since it's a real match)
+                const blendedAqntl = state.aqntl * 0.2 + calibratedAqntl * 0.8
+                state = { ...state, aqntl: Math.max(0.1, Math.min(2.0, blendedAqntl)) }
+                v5LogFor(xmlEvent, `[V5 AFTER-TIE] AQNTL calibrated: ${state.aqntl.toFixed(3)}s (from ${totalBeatsFromStart.toFixed(1)} beats, ${totalTimeFromStart.toFixed(3)}s elapsed)`)
+            }
+
+            const newAnchors = [...state.anchors]
+            const newBeatAnchors = [...state.beatAnchors]
+            const isNewMeasure = state.anchors.length === 0 || state.anchors[state.anchors.length - 1].measure !== xmlEvent.measure
+            if (isNewMeasure) newAnchors.push({ measure: xmlEvent.measure, time: freshMatch.time })
+            if (xmlEvent.beat > 1.01) newBeatAnchors.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: freshMatch.time })
+
+            const nextIndex = state.currentEventIndex + 1
+            v5LogFor(xmlEvent, `[V5] 🎵 Post-tie fresh match M${xmlEvent.measure} B${xmlEvent.beat} → ${freshMatch.time.toFixed(3)}s | pitches=[${chord.notes.map(n => n.pitch)}] aqntl=${state.aqntl.toFixed(3)}`)
+
+            return {
+                ...state,
+                anchors: newAnchors,
+                beatAnchors: newBeatAnchors,
+                ghostAnchor: null,
+                midiCursor: chord.lastIndex + 1,
+                currentEventIndex: nextIndex,
+                lastAnchorTime: freshMatch.time,
+                lastAnchorGlobalBeat: xmlEvent.globalBeat,
+                lastRealMatchTime: freshMatch.time,
+                afterTiedSequence: false, // Cleared: AQNTL now calibrated
+                consecutiveMisses: 0,
+                recentOutcomes: pushOutcome(state.recentOutcomes, 'match'),
+                status: nextIndex >= xmlEvents.length ? 'done' : 'running',
+            }
+        }
+        // No match found at all (unusual) — fall through to normal window logic
+        v5LogFor(xmlEvent, `[V5 AFTER-TIE] No match found in fresh scan; falling through to normal logic`)
     }
 
     // ─── AFTER-FERMATA FRESH SCAN ───
