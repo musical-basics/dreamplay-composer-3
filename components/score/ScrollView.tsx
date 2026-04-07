@@ -380,7 +380,21 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                                 gve.notes.forEach((n: any) => {
                                     if (!n.sourceNote || !n.sourceNote.Pitch) return;
                                     if (isGraceLikeSourceNote(n.sourceNote)) return;
-                                    const pitch = n.sourceNote.Pitch;
+
+                                    // Skip tie-continuation notes — they don't produce new MIDI note-on events.
+                                    // A tied note's pitch was already sounding from the previous measure.
+                                    // Including them creates phantom XML events that the V5 mapper
+                                    // searches for notes it will never find at that timestamp.
+                                    try {
+                                        const noteTie = n.sourceNote.NoteTie;
+                                        if (noteTie) {
+                                            const tieNotes = noteTie.Notes;
+                                            const isTieContinuation = Array.isArray(tieNotes)
+                                                ? tieNotes.length > 0 && tieNotes[0] !== n.sourceNote
+                                                : noteTie.StartNote && noteTie.StartNote !== n.sourceNote;
+                                            if (isTieContinuation) return;
+                                        }
+                                    } catch { /* ignore — guard against OSMD model differences */ }
 
                                     const midiPitch = getSourceNoteMidiPitch(n.sourceNote) ?? 60
 
@@ -417,6 +431,10 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                     sortedBeats.forEach(b => {
                         const acc = beatAccumulator.get(b);
                         const pitchArr = acc ? Array.from(acc.pitches) : [];
+                        // If a beat slot has entries (non-rest note-heads found) but no pitches
+                        // accumulated, it means every note was a tie continuation — no new MIDI
+                        // note-on will fire here.
+                        const isTiedContinuation = pitchArr.length === 0;
                         xmlEventsList.push({
                             measure: measureNumber,
                             beat: b,
@@ -426,6 +444,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                             hasFermata: acc ? acc.hasFermata : false,
                             repeatStart: b <= 1.01 && repeatStartMeasures.has(measureNumber),
                             repeatEnd:   b <= 1.01 && repeatEndMeasures.has(measureNumber),
+                            isTiedContinuation,
                         });
                     });
 

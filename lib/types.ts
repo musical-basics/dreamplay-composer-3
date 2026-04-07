@@ -65,6 +65,12 @@ export interface XMLEvent {
     repeatStart?: boolean
     /** This event is at the first beat of the measure that closes a repeated section (end-repeat barline) */
     repeatEnd?: boolean
+    /**
+     * True when every note at this beat is a tie continuation from the previous measure.
+     * No new MIDI note-on will occur here, so the mapper should dead-reckon immediately
+     * without burning its consecutive-miss / continuity-resync budget.
+     */
+    isTiedContinuation?: boolean
 }
 
 /** Interactive V5 mapper state machine */

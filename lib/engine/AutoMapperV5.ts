@@ -309,6 +309,22 @@ export function initV5(
     return state
 }
 
+/**
+ * Expand a MIDI pitch list to include all octave variants within the piano range [21, 108].
+ * Used as a last-resort fallback when the performer plays notes in the wrong octave
+ * (e.g. C#1+C#2 instead of the written C#2+C#3). Pitch-class identity (note % 12)
+ * is preserved; only the octave number differs.
+ */
+function expandToOctaveEquivalents(pitches: number[]): number[] {
+    const expanded = new Set<number>(pitches)
+    for (const p of pitches) {
+        for (let shift = -48; shift <= 48; shift += 12) {
+            const eq = p + shift
+            if (eq >= 21 && eq <= 108) expanded.add(eq)
+        }
+    }
+    return [...expanded]
+}
 
 /**
  * Process the next xmlEvent. Returns updated state.
@@ -366,7 +382,34 @@ export function stepV5(
         `aqntl=${state.aqntl.toFixed(3)} window=[${searchStart.toFixed(3)},${searchEnd.toFixed(3)}] ` +
         `cursor=${state.midiCursor} strayCursor=${state.straySkipCursor ?? 'none'} scanStart=${scanStartIndex} misses=${state.consecutiveMisses}`
     )
-    v5LogFor(xmlEvent, `[V5 STEP DETAIL] expectedTime=${expectedTime.toFixed(3)} preserveTempo=${preserveTempoEstimate} afterFermata=${!!state.afterFermata}`)
+    v5LogFor(xmlEvent, `[V5 STEP DETAIL] expectedTime=${expectedTime.toFixed(3)} preserveTempo=${preserveTempoEstimate} afterFermata=${!!state.afterFermata} isTied=${!!xmlEvent.isTiedContinuation}`)
+
+    // ─── TIED-CONTINUATION FAST PATH ───
+    // All notes at this beat are tied from the previous measure — no new MIDI note-on
+    // will occur. Dead-reckon immediately WITHOUT incrementing consecutiveMisses so
+    // we don't burn the continuity-resync budget on expected-absent onsets.
+    if (xmlEvent.isTiedContinuation) {
+        const deadReckonTime = state.lastAnchorTime + expectedDelta
+        const nextIndex = state.currentEventIndex + 1
+        const newAnchors = [...state.anchors]
+        const isNewMeasure = newAnchors.length === 0 || newAnchors[newAnchors.length - 1].measure !== xmlEvent.measure
+        if (isNewMeasure) newAnchors.push({ measure: xmlEvent.measure, time: deadReckonTime })
+        v5LogFor(xmlEvent,
+            `[V5] ⏭ Tied-continuation M${xmlEvent.measure} B${xmlEvent.beat}: ` +
+            `dead-reckoning to ${deadReckonTime.toFixed(3)}s (no new MIDI onset expected)`
+        )
+        return {
+            ...state,
+            anchors: newAnchors,
+            currentEventIndex: nextIndex,
+            lastAnchorTime: deadReckonTime,
+            lastAnchorGlobalBeat: xmlEvent.globalBeat,
+            straySkipCursor: undefined,
+            // consecutiveMisses unchanged — tied notes are not mapping failures
+            recentOutcomes: pushOutcome(state.recentOutcomes, 'dead-reckon'),
+            status: nextIndex >= xmlEvents.length ? 'done' : 'running',
+        }
+    }
 
     // ─── AFTER-FERMATA FRESH SCAN ───
     // If the previous beat had a fermata, the performer held it for an unpredictable duration.
@@ -762,7 +805,60 @@ export function stepV5(
             }
         }
 
-        // No fresh match either — this beat has no new onset (held note, rest, ornament)
+        // ─── OCTAVE-EQUIVALENT FALLBACK ───
+        // The performer may have played the right pitch class but in the wrong octave
+        // (e.g. C#1+C#2 instead of C#2+C#3). Expand the expected pitches to all octave
+        // variants within piano range and retry the continuity resync once.
+        if (xmlEvent.pitches.length > 0) {
+            const octavePitches = expandToOctaveEquivalents(xmlEvent.pitches)
+            if (octavePitches.length > xmlEvent.pitches.length) {
+                const octaveResync = findContinuityResyncMatch(
+                    octavePitches,
+                    sorted,
+                    scanStartIndex,
+                    expectedTime,
+                    state.lastAnchorTime,
+                    expectedDelta,
+                    state.aqntl,
+                    state.chordThresholdFraction,
+                    beatsElapsed
+                )
+                if (octaveResync) {
+                    const chord = octaveResync.chord
+                    const anchorTime = octaveResync.anchorTime
+                    const newAnchorsOct = [...state.anchors]
+                    const newBeatAnchorsOct = [...state.beatAnchors]
+                    const isNewMeasureOct = newAnchorsOct.length === 0 || newAnchorsOct[newAnchorsOct.length - 1].measure !== xmlEvent.measure
+                    if (isNewMeasureOct) newAnchorsOct.push({ measure: xmlEvent.measure, time: anchorTime })
+                    if (xmlEvent.beat > 1.01) newBeatAnchorsOct.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: anchorTime })
+                    const nextIndexOct = state.currentEventIndex + 1
+                    v5LogFor(xmlEvent,
+                        `[V5] 🎵 Octave-equiv resync M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
+                        `matched MIDI pitch(es)=[${chord.notes.map(n => n.pitch).join(',')}] ` +
+                        `(expected=[${xmlEvent.pitches.join(',')}], expanded=[${octavePitches.join(',')}])`
+                    )
+                    return {
+                        ...state,
+                        anchors: newAnchorsOct,
+                        beatAnchors: newBeatAnchorsOct,
+                        ghostAnchor: null,
+                        aqntl: state.aqntl, // Don't update AQNTL from an octave-shifted match
+                        midiCursor: chord.lastIndex + 1,
+                        straySkipCursor: undefined,
+                        currentEventIndex: nextIndexOct,
+                        lastAnchorTime: anchorTime,
+                        lastAnchorGlobalBeat: xmlEvent.globalBeat,
+                        afterFermata: xmlEvent.hasFermata || false,
+                        consecutiveMisses: 0,
+                        recentOutcomes: pushOutcome(state.recentOutcomes, 'match'),
+                        status: nextIndexOct >= xmlEvents.length ? 'done' : 'running',
+                    }
+                }
+                v5LogFor(xmlEvent, `[V5 OCTAVE-FALLBACK] No match even with octave expansion -> proceeding to dead-reckon`)
+            }
+        }
+
+        // No match anywhere — this beat has no new onset (held note, rest, ornament)
         // Dead-reckon it as fallback
         const nextIndex = state.currentEventIndex + 1
         if (nextIndex < xmlEvents.length) {

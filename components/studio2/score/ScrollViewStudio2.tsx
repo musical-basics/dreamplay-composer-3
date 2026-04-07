@@ -553,6 +553,9 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                     sortedBeats.forEach(b => {
                         const acc = beatAccumulator.get(b);
                         const pitchArr = acc ? Array.from(acc.pitches) : [];
+                        // Beat slot exists (non-rest note-heads found) but no pitches accumulated
+                        // → every note was a tie continuation: no new MIDI note-on will fire here.
+                        const isTiedContinuation = pitchArr.length === 0;
                         xmlEventsList.push({
                             measure: measureNumber,
                             beat: b,
@@ -562,6 +565,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                             hasFermata: acc ? acc.hasFermata : false,
                             repeatStart: b <= 1.01 && repeatStartMeasures.has(measureNumber),
                             repeatEnd:   b <= 1.01 && repeatEndMeasures.has(measureNumber),
+                            isTiedContinuation,
                         });
                     });
 
