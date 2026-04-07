@@ -72,6 +72,7 @@ export default function AdminEditor() {
     const [noteCounts, setNoteCounts] = useState<Map<number, number>>(new Map())
     const [xmlEvents, setXmlEvents] = useState<XMLEvent[]>([])
     const xmlEventsRef = useRef<XMLEvent[]>([]) // Persists fermata data across OSMD re-renders
+    const resolvedXmlEventsRef = useRef<XMLEvent[]>([]) // Repeat-resolved events (used during mapping)
     const [v5State, setV5State] = useState<V5MapperState | null>(null)
     const [transcribing, setTranscribing] = useState(false)
     const [transcriptionJobId, setTranscriptionJobId] = useState<string | null>(null)
@@ -583,7 +584,7 @@ export default function AdminEditor() {
 
         setIsAiMapping(true);
         try {
-            const { initV5, stepV5 } = await import('@/lib/engine/AutoMapperV5');
+            const { initV5, stepV5, resolveRepeats } = await import('@/lib/engine/AutoMapperV5');
 
             // Detect audio peak for initial offset (optional but helpful)
             let audioOffset = 0;
@@ -593,11 +594,14 @@ export default function AdminEditor() {
                 console.warn('[AutoMap] Audio peak detection failed, using 0s offset');
             }
 
-            let state = initV5(parsedMidi.notes, xmlEventsRef.current, audioOffset, chordThresholdFraction);
+            // Pre-process: expand repeat sections if the MIDI follows them
+            resolvedXmlEventsRef.current = resolveRepeats(xmlEventsRef.current, parsedMidi.notes);
+
+            let state = initV5(parsedMidi.notes, resolvedXmlEventsRef.current, audioOffset, chordThresholdFraction);
 
             // Auto-run steps until paused or done
             while (state.status === 'running') {
-                state = stepV5(state, parsedMidi.notes, xmlEventsRef.current);
+                state = stepV5(state, parsedMidi.notes, resolvedXmlEventsRef.current);
             }
 
             setV5State(state);
@@ -651,10 +655,11 @@ export default function AdminEditor() {
 
         const { confirmGhost, stepV5 } = await import('@/lib/engine/AutoMapperV5');
         let state = confirmGhost(v5State, v5State.ghostAnchor.time);
+        const evts = resolvedXmlEventsRef.current.length > 0 ? resolvedXmlEventsRef.current : xmlEventsRef.current;
 
         // Continue stepping after confirm
         while (state.status === 'running') {
-            state = stepV5(state, parsedMidi.notes, xmlEventsRef.current);
+            state = stepV5(state, parsedMidi.notes, evts);
         }
 
         setV5State(state);
@@ -671,7 +676,8 @@ export default function AdminEditor() {
         if (!v5State || !parsedMidi) return;
 
         const { runV5ToEnd } = await import('@/lib/engine/AutoMapperV5');
-        const finalState = runV5ToEnd(v5State, parsedMidi.notes, xmlEventsRef.current);
+        const evts = resolvedXmlEventsRef.current.length > 0 ? resolvedXmlEventsRef.current : xmlEventsRef.current;
+        const finalState = runV5ToEnd(v5State, parsedMidi.notes, evts);
 
         setV5State(finalState);
         setAnchors(finalState.anchors);

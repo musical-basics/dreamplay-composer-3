@@ -61,6 +61,10 @@ export interface XMLEvent {
     smallestDuration: number
     /** Whether this beat has a fermata marking */
     hasFermata?: boolean
+    /** This event is at the first beat of a repeated section (start-repeat barline) */
+    repeatStart?: boolean
+    /** This event is at the first beat of the measure that closes a repeated section (end-repeat barline) */
+    repeatEnd?: boolean
 }
 
 /** Interactive V5 mapper state machine */

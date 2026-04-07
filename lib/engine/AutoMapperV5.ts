@@ -944,3 +944,175 @@ export function runV5ToEnd(
     debug.log(`[V5] Complete. ${current.anchors.length} Measure Anchors, ${current.beatAnchors.length} Beat Anchors.`)
     return { ...current, status: 'done' }
 }
+
+
+// ─── Repeat Resolution Pre-Processor ──────────────────────────────────────
+
+/**
+ * Estimate roughly how far into the MIDI note array we are after walking
+ * through the first `throughIndex` XMLEvents. Uses pure pitch matching
+ * (no timing) — fast and sufficient for lookahead scoring.
+ */
+function roughEstimateMidiPosition(
+    xmlEvents: XMLEvent[],
+    midiNotes: NoteEvent[],
+    throughIndex: number
+): number {
+    let midiIdx = 0
+    for (let ei = 0; ei <= throughIndex && ei < xmlEvents.length; ei++) {
+        const event = xmlEvents[ei]
+        if (event.pitches.length === 0) continue
+        // Scan forward in MIDI (up to 60 notes) for any pitch in this event
+        const searchLimit = Math.min(midiIdx + 60, midiNotes.length)
+        for (let mi = midiIdx; mi < searchLimit; mi++) {
+            if (event.pitches.includes(midiNotes[mi].pitch)) {
+                midiIdx = mi + 1
+                break
+            }
+        }
+    }
+    return midiIdx
+}
+
+/**
+ * Score how well a set of candidate XMLEvents matches the given MIDI lookahead.
+ * Returns count of candidateEvents (up to maxEvents) that have ANY pitch
+ * present anywhere in the lookahead notes.
+ */
+function scoreHypothesis(
+    candidateEvents: XMLEvent[],
+    lookaheadNotes: NoteEvent[],
+    maxEvents: number = 10
+): number {
+    if (candidateEvents.length === 0 || lookaheadNotes.length === 0) return 0
+    const lookaheadPitches = new Set(lookaheadNotes.map(n => n.pitch))
+    let score = 0
+    const limit = Math.min(candidateEvents.length, maxEvents)
+    for (let i = 0; i < limit; i++) {
+        if (candidateEvents[i].pitches.some(p => lookaheadPitches.has(p))) {
+            score++
+        }
+    }
+    return score
+}
+
+/**
+ * Repeat-aware XMLEvent pre-processor.
+ *
+ * Call this BEFORE initV5(). It detects repeat sections (marked with
+ * repeatStart / repeatEnd flags on XMLEvents) and uses 25-note MIDI
+ * pitch lookahead to determine whether the recording follows each repeat.
+ *
+ * If the repeat IS followed → the section's XMLEvents are duplicated (with
+ * adjusted globalBeat values) so the mapper sees the correct event sequence.
+ *
+ * If the repeat is NOT followed → returns events unchanged.
+ *
+ * Pure function — does not mutate inputs.
+ */
+export function resolveRepeats(
+    xmlEvents: XMLEvent[],
+    midiNotes: NoteEvent[]
+): XMLEvent[] {
+    // ── Step 1: Find all repeat sections ──────────────────────────
+    const sections: { startIdx: number; endIdx: number }[] = []
+    let sectionStartIdx = -1
+
+    for (let i = 0; i < xmlEvents.length; i++) {
+        const e = xmlEvents[i]
+        if (e.repeatStart && e.beat <= 1.01) {
+            sectionStartIdx = i
+        }
+        if (e.repeatEnd && sectionStartIdx >= 0) {
+            // Extend to the last event in the repeat-end measure
+            const repeatEndMeasure = e.measure
+            let endIdx = i
+            while (endIdx + 1 < xmlEvents.length && xmlEvents[endIdx + 1].measure === repeatEndMeasure) {
+                endIdx++
+            }
+            sections.push({ startIdx: sectionStartIdx, endIdx })
+            sectionStartIdx = -1
+        }
+    }
+
+    if (sections.length === 0) {
+        debug.log('[resolveRepeats] No repeat sections found — returning events unchanged.')
+        return xmlEvents
+    }
+
+    debug.log(`[resolveRepeats] Found ${sections.length} repeat section(s).`)
+
+    // ── Step 2: Process sections left-to-right ────────────────────
+    let result = [...xmlEvents]
+    let insertionOffset = 0
+
+    for (const section of sections) {
+        const adjStart = section.startIdx + insertionOffset
+        const adjEnd   = section.endIdx + insertionOffset
+
+        if (adjEnd >= result.length) break
+
+        // Estimate MIDI cursor position when we reach the end of this section
+        const midiCursorAtEnd = roughEstimateMidiPosition(result, midiNotes, adjEnd)
+        const lookaheadNotes  = midiNotes.slice(midiCursorAtEnd, midiCursorAtEnd + 25)
+
+        // Hypothesis A: no repeat — events after section match lookahead?
+        const afterEvents = result.slice(adjEnd + 1, adjEnd + 11)
+        const scoreA = scoreHypothesis(afterEvents, lookaheadNotes)
+
+        // Hypothesis B: repeat taken — section-start events match lookahead?
+        const startEvents = result.slice(adjStart, adjStart + 10)
+        const scoreB = scoreHypothesis(startEvents, lookaheadNotes)
+
+        const startMeasure = result[adjStart]?.measure ?? '?'
+        const endMeasure   = result[adjEnd]?.measure ?? '?'
+        debug.log(
+            `[resolveRepeats] M${startMeasure}-M${endMeasure}: ` +
+            `scoreA(noRepeat)=${scoreA} scoreB(repeat)=${scoreB} ` +
+            `midiCursor=${midiCursorAtEnd} lookahead=${lookaheadNotes.length} notes`
+        )
+
+        // Conservative: only expand if repeat hypothesis wins clearly
+        if (scoreB <= scoreA) {
+            debug.log('[resolveRepeats] → Skipping repeat (no-repeat wins or tie).')
+            continue
+        }
+
+        // ── Expand: duplicate the section and insert after adjEnd ────
+        const sectionEvents = result.slice(adjStart, adjEnd + 1)
+
+        // Beat span of the section (from first event to one note-duration past last event)
+        const firstGlobalBeat = result[adjStart].globalBeat
+        const lastGlobalBeat  = result[adjEnd].globalBeat
+        const sectionBeatSpan = (lastGlobalBeat - firstGlobalBeat) + (result[adjEnd].smallestDuration ?? 1)
+
+        // Duplicate with shifted globalBeat, strip repeat flags to avoid recursion
+        const duplicated: XMLEvent[] = sectionEvents.map(e => ({
+            ...e,
+            globalBeat: e.globalBeat + sectionBeatSpan,
+            repeatStart: false,
+            repeatEnd: false,
+        }))
+
+        // Insert immediately after adjEnd
+        result = [
+            ...result.slice(0, adjEnd + 1),
+            ...duplicated,
+            ...result.slice(adjEnd + 1),
+        ]
+
+        // Shift globalBeat of ALL events after the inserted block
+        // (they were originally calculated without this repeat, so they're off by sectionBeatSpan)
+        for (let i = adjEnd + 1 + duplicated.length; i < result.length; i++) {
+            result[i] = { ...result[i], globalBeat: result[i].globalBeat + sectionBeatSpan }
+        }
+
+        insertionOffset += duplicated.length
+        debug.log(
+            `[resolveRepeats] ✓ Repeat taken M${startMeasure}-M${endMeasure}: ` +
+            `duplicated ${duplicated.length} events. Total: ${result.length}`
+        )
+    }
+
+    return result
+}

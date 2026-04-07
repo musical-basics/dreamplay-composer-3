@@ -254,6 +254,47 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
         const xmlEventsList: XMLEvent[] = []
         let cumulativeBeats = 0
 
+        // ── Detect repeat barlines from OSMD ──────────────────────────────────
+        const repeatStartMeasures = new Set<number>()
+        const repeatEndMeasures = new Set<number>()
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const repetitions: any[] = (instance as any).Sheet?.MusicPartInstructions ?? []
+            for (const rep of repetitions) {
+                const repType = rep?.type ?? rep?.TypeOfInstruction
+                const repMeasure = (rep?.measureIndex ?? rep?.MeasureIndex ?? -1) + 1
+                if (repMeasure < 1) continue
+                const isStart = repType === 0 || repType === 'StartRepeat' || repType === 8
+                const isEnd   = repType === 1 || repType === 'BackJump'    || repType === 9 || repType === 'EndRepeat'
+                if (isStart) repeatStartMeasures.add(repMeasure)
+                if (isEnd)   repeatEndMeasures.add(repMeasure)
+            }
+        } catch { /* ignore */ }
+        if (repeatStartMeasures.size === 0 && repeatEndMeasures.size === 0) {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                instance.Sheet.SourceMeasures.forEach((sm: any, idx: number) => {
+                    const measureNum = idx + 1
+                    const allInstructions = [
+                        ...(sm?.FirstRepetitionInstructions ?? []),
+                        ...(sm?.LastRepetitionInstructions  ?? []),
+                    ]
+                    for (const inst of allInstructions) {
+                        const t = inst?.type ?? inst?.TypeOfInstruction
+                        if (t === 0 || t === 'StartRepeat' || t === 8)  repeatStartMeasures.add(measureNum)
+                        if (t === 1 || t === 'BackJump' || t === 9 || t === 'EndRepeat') repeatEndMeasures.add(measureNum)
+                    }
+                })
+            } catch { /* ignore */ }
+        }
+        if (repeatStartMeasures.size > 0 || repeatEndMeasures.size > 0) {
+            console.log(
+                `[ScrollView] Detected repeat boundaries — starts: [${[...repeatStartMeasures].join(',')}] ` +
+                `ends: [${[...repeatEndMeasures].join(',')}]`
+            )
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         measureList.forEach((staves: any[], index: number) => {
             const measureNumber = index + 1
@@ -383,6 +424,8 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                             pitches: pitchArr,
                             smallestDuration: acc ? acc.smallestDur : 1,
                             hasFermata: acc ? acc.hasFermata : false,
+                            repeatStart: b <= 1.01 && repeatStartMeasures.has(measureNumber),
+                            repeatEnd:   b <= 1.01 && repeatEndMeasures.has(measureNumber),
                         });
                     });
 
