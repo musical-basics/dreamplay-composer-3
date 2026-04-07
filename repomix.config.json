@@ -1,0 +1,38 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml"
+  },
+  "include": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "worker/**/*.{ts,tsx}",
+    "scripts/**/*.{ts,tsx,js,cjs}",
+    "docs/**/*.md",
+    "*.{ts,tsx,mjs,json}"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "_backup_files/**",
+      "node_modules/**",
+      ".next/**",
+      "public/**",
+      "supabase/**",
+      "modal/**",
+      "components/ui/**",
+      "tsconfig.tsbuildinfo",
+      "test-*.mid",
+      "test-*.wav",
+      "*.d.ts",
+      "repomix-output.*",
+      "*repomix*.xml"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}
