@@ -562,7 +562,8 @@ export default function AdminEditor() {
     const formatTime = (s: number) => {
         const m = Math.floor(s / 60)
         const sec = Math.floor(s % 60)
-        return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+        const cs = Math.floor((s % 1) * 100) // centiseconds (0-99)
+        return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}:${cs.toString().padStart(2, '0')}`
     }
 
     // rAF loop to poll current playback time for the transport slider
