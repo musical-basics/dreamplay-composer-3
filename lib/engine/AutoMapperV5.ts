@@ -891,23 +891,23 @@ export function stepV5(
         // Running this FIRST prevents the octave fallback from stealing enharmonically
         // equivalent notes from the *next beat's chord* (e.g. C♮ expands to C5=B#4
         // which may appear in the next chord, causing cascade misanchoring).
+        //
+        // IMPORTANT: uses the SAME TIGHT window [searchStart, searchEnd] as the normal
+        // scan — NOT findContinuityResyncMatch (which reaches ~1 beat ahead). A misplay
+        // (wrong accidental) must be at the correct beat time. If the ±1 semitone note
+        // is outside the normal window, it belongs to a different beat, not a misplay.
         if (xmlEvent.pitches.length > 0) {
             const semitoneExpanded = expandToSemitoneNeighbors(xmlEvent.pitches)
             if (semitoneExpanded.length > xmlEvent.pitches.length) {
-                const semitoneResync = findContinuityResyncMatch(
-                    semitoneExpanded,
-                    sorted,
-                    scanStartIndex,
-                    expectedTime,
-                    state.lastAnchorTime,
-                    expectedDelta,
-                    state.aqntl,
-                    state.chordThresholdFraction,
-                    beatsElapsed
-                )
-                if (semitoneResync) {
-                    const chord = semitoneResync.chord
-                    const anchorTime = semitoneResync.anchorTime
+                const semitoneWindowMatches = scanWindow(semitoneExpanded, sorted, scanStartIndex, searchStart, searchEnd)
+                if (semitoneWindowMatches.length > 0) {
+                    const chordThreshold = Math.max(0.100, state.aqntl * state.chordThresholdFraction)
+                    // Pick the match closest to expectedTime within the tight window
+                    const bestST = semitoneWindowMatches.reduce((best, m) =>
+                        Math.abs(m.time - expectedTime) < Math.abs(best.time - expectedTime) ? m : best
+                    )
+                    const chord = extractChord(semitoneExpanded, sorted, bestST.index, bestST.time, chordThreshold)
+                    const anchorTime = bestST.time
                     const newAnchorsST = [...state.anchors]
                     const newBeatAnchorsST = [...state.beatAnchors]
                     const isNewMeasureST = newAnchorsST.length === 0 || newAnchorsST[newAnchorsST.length - 1].measure !== xmlEvent.measure
@@ -915,9 +915,9 @@ export function stepV5(
                     if (xmlEvent.beat > 1.01) newBeatAnchorsST.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: anchorTime })
                     const nextIndexST = state.currentEventIndex + 1
                     v5LogFor(xmlEvent,
-                        `[V5] 🎵 Semitone-neighbor resync M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
+                        `[V5] 🎵 Semitone-neighbor (tight window) M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
                         `matched MIDI pitch(es)=[${chord.notes.map(n => n.pitch).join(',')}] ` +
-                        `(expected=[${xmlEvent.pitches.join(',')}], ±1 semitone — likely wrong accidental played)`
+                        `(expected=[${xmlEvent.pitches.join(',')}], window=[${searchStart.toFixed(3)},${searchEnd.toFixed(3)}])`
                     )
                     return {
                         ...state,
@@ -936,7 +936,7 @@ export function stepV5(
                         status: nextIndexST >= xmlEvents.length ? 'done' : 'running',
                     }
                 }
-                v5LogFor(xmlEvent, `[V5 SEMITONE-FALLBACK] No ±1 semitone match → trying octave fallback`)
+                v5LogFor(xmlEvent, `[V5 SEMITONE-FALLBACK] No ±1 semitone match in tight window [${searchStart.toFixed(3)},${searchEnd.toFixed(3)}] → trying octave fallback`)
             }
         }
 
