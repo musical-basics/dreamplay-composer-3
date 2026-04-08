@@ -428,12 +428,6 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                     newBeatXMap.set(measureNumber, beatPositions)
 
                     const sortedBeats = Array.from(uniqueFractionalBeats).sort((a, b) => a - b);
-                    // Each OSMD beat slot b (1..numerator) spans one beat in the time-sig sense.
-                    // In 2/2, one beat = one half note = 2 quarter notes.
-                    // AQNTL in V5 is calibrated in quarter-note seconds, so globalBeat must also
-                    // count in quarter-note units. Scale by (4 / denominator) so that:
-                    //   4/4 → 1× (no change),  2/2 → 2×,  3/8 → 0.5× etc.
-                    const quarterScale = 4 / denominator;
                     sortedBeats.forEach(b => {
                         const acc = beatAccumulator.get(b);
                         const pitchArr = acc ? Array.from(acc.pitches) : [];
@@ -444,7 +438,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                         xmlEventsList.push({
                             measure: measureNumber,
                             beat: b,
-                            globalBeat: cumulativeBeats + (b - 1) * quarterScale,
+                            globalBeat: cumulativeBeats + (b - 1),
                             pitches: pitchArr,
                             smallestDuration: acc ? acc.smallestDur : 1,
                             hasFermata: acc ? acc.hasFermata : false,
@@ -457,9 +451,7 @@ const ScrollViewComponent: React.FC<ScrollViewProps> = ({
                 } catch { /* ignore */ }
             }
 
-            // Advance cumulativeBeats by the measure's duration in quarter-note units.
-            // numerator × (4/denominator) = number of quarter notes in one measure.
-            cumulativeBeats += numerator * (4 / denominator)
+            cumulativeBeats += numerator
 
             const measureNotes: NoteData[] = []
             const sig = measureTimeSigMap.get(measureNumber) || { numerator: 4, denominator: 4 }

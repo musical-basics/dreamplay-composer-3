@@ -133,6 +133,29 @@ export default function AdminEditor() {
     const setShowWaveformTimeline = useAppStore((s) => s.setShowWaveformTimeline)
     const showAnchorSidebar = useAppStore((s) => s.showAnchorSidebar)
     const setShowAnchorSidebar = useAppStore((s) => s.setShowAnchorSidebar)
+
+    // ── Resizable anchor sidebar ────────────────────────────────────────
+    const [sidebarWidth, setSidebarWidth] = useState(280)
+    const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+    const handleSidebarDragStart = (e: React.MouseEvent) => {
+        sidebarDragRef.current = { startX: e.clientX, startWidth: sidebarWidth }
+        e.preventDefault()
+    }
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (!sidebarDragRef.current) return
+            const delta = e.clientX - sidebarDragRef.current.startX
+            setSidebarWidth(Math.min(600, Math.max(220, sidebarDragRef.current.startWidth + delta)))
+        }
+        const onUp = () => { sidebarDragRef.current = null }
+        document.addEventListener('mousemove', onMove)
+        document.addEventListener('mouseup', onUp)
+        return () => {
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+        }
+    }, [])
+
     const showWaterfall = useAppStore((s) => s.showWaterfall)
     const setShowWaterfall = useAppStore((s) => s.setShowWaterfall)
     const showScore = useAppStore((s) => s.showScore)
@@ -889,7 +912,11 @@ export default function AdminEditor() {
             <input ref={midiInputRef} type="file" accept=".mid,.midi" className="hidden" onChange={handleMidiUpload} />
 
             {isAdmin && showAnchorSidebar && (
-                <AnchorSidebar
+                <div
+                    className="flex shrink-0 h-full relative"
+                    style={{ width: sidebarWidth }}
+                >
+                    <AnchorSidebar
                     anchors={anchors}
                     beatAnchors={beatAnchors}
                     currentMeasure={currentMeasure}
@@ -914,7 +941,14 @@ export default function AdminEditor() {
                     onUpdateGhostTime={handleUpdateGhostTime}
                     v5State={v5State}
                     isAiMapping={isAiMapping}
-                />
+                    />
+                    {/* Drag-to-resize handle */}
+                    <div
+                        onMouseDown={handleSidebarDragStart}
+                        className="w-1.5 cursor-col-resize shrink-0 self-stretch bg-zinc-800 hover:bg-purple-500 active:bg-purple-400 transition-colors"
+                        title="Drag to resize panel"
+                    />
+                </div>
             )}
 
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -1233,16 +1267,34 @@ export default function AdminEditor() {
                             </span>
                         </div>
 
-                        {/* Seek slider — takes remaining space */}
-                        <div className="flex-1 min-w-0">
-                            <Slider
-                                value={[displayTime]}
-                                min={0}
-                                max={duration || 100}
-                                step={0.1}
-                                onValueChange={(v) => handleSeek(v[0])}
-                                className="[&_[data-slot=slider-track]]:bg-zinc-800 [&_[data-slot=slider-range]]:bg-purple-500 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:border-purple-500"
-                            />
+                        {/* Seek slider — frame buttons flank it for fine-grained scrubbing */}
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                            <Button
+                                variant="ghost" size="sm"
+                                onClick={() => handleSeek(Math.max(0, displayTime - 0.05))}
+                                className="text-zinc-600 hover:text-purple-400 h-6 w-6 p-0 shrink-0"
+                                title="Back 1 frame (50ms)"
+                            >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                            </Button>
+                            <div className="flex-1 min-w-0">
+                                <Slider
+                                    value={[displayTime]}
+                                    min={0}
+                                    max={duration || 100}
+                                    step={0.1}
+                                    onValueChange={(v) => handleSeek(v[0])}
+                                    className="[&_[data-slot=slider-track]]:bg-zinc-800 [&_[data-slot=slider-range]]:bg-purple-500 [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-thumb]]:border-purple-500"
+                                />
+                            </div>
+                            <Button
+                                variant="ghost" size="sm"
+                                onClick={() => handleSeek(Math.min(duration, displayTime + 0.05))}
+                                className="text-zinc-600 hover:text-purple-400 h-6 w-6 p-0 shrink-0"
+                                title="Forward 1 frame (50ms)"
+                            >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            </Button>
                         </div>
 
                         {/* Record */}

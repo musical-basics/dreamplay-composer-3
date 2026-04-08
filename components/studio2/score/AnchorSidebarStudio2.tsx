@@ -168,7 +168,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     }
 
     return (
-        <div className={`w-64 ${bg} border-r ${border} flex flex-col h-full overflow-hidden shrink-0`}>
+        <div className={`w-full ${bg} border-r ${border} flex flex-col h-full overflow-hidden shrink-0`}>
             <div className={`p-3 border-b ${border} flex items-center justify-between`}>
                 <h2 className="text-sm font-semibold">Anchors</h2>
                 <span className={`text-xs ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
