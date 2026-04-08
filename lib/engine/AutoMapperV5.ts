@@ -62,17 +62,21 @@ function previewCandidates(candidates: { pitch: number; time: number; index: num
         .join(' ')
 }
 
-/** Track recent outcomes, keeping only the last 10 */
+/** Track recent outcomes, keeping only the last 20 */
 function pushOutcome(outcomes: Outcome[], outcome: Outcome): Outcome[] {
     const updated = [...outcomes, outcome]
-    return updated.length > 10 ? updated.slice(-10) : updated
+    return updated.length > 20 ? updated.slice(-20) : updated
 }
 
-/** Check if 70%+ of last 10 outcomes are non-matches (runaway) */
+/**
+ * Check if accuracy has dropped below 80% over the last 20 events.
+ * If ≥5/20 outcomes are non-matches (<80% accuracy), the mapper is confused
+ * and should stop rather than cascade bad anchors across the rest of the piece.
+ */
 function isRunaway(outcomes: Outcome[]): boolean {
-    if (outcomes.length < 10) return false
+    if (outcomes.length < 20) return false
     const badCount = outcomes.filter((o: Outcome) => o !== 'match').length
-    return badCount >= 7
+    return badCount >= 5 // <80% match rate over last 20 events
 }
 
 /** Find first MIDI note whose pitch matches any of the expected pitches */
@@ -680,31 +684,21 @@ export function stepV5(
 
             v5LogFor(xmlEvent, `[V5] ⚠ Stray note at M${xmlEvent.measure} B${xmlEvent.beat}: only ${matchedCount}/${expectedCount} pitches matched (${chord.notes.map(n => n.pitch).join(',')}). Skipping. [misses=${state.consecutiveMisses + 1}]`)
 
-            // Track outcome and check for runaway
+            // Track outcome and check for accuracy drop
             const outcomes = pushOutcome(state.recentOutcomes, 'stray')
-            v5LogFor(xmlEvent, `[V5 STRAY] outcomes=${outcomes.join(',')} bad=${outcomes.filter(o => o !== 'match').length}/10`)
+            const badCount = outcomes.filter(o => o !== 'match').length
+            v5LogFor(xmlEvent, `[V5 STRAY] outcomes=${outcomes.join(',')} bad=${badCount}/${outcomes.length} accuracy=${Math.round((1 - badCount / Math.max(1, outcomes.length)) * 100)}%`)
             if (isRunaway(outcomes)) {
-                v5WarnRunaway(xmlEvent, outcomes.filter(o => o !== 'match').length)
-                const ghostTime = state.lastAnchorTime + expectedDelta
-                const recoveryNextIndex = state.currentEventIndex + 1
-                const newAnchors = [...state.anchors]
-                const newBeatAnchors = [...state.beatAnchors]
-                const isNewMeasure = state.anchors.length === 0 || state.anchors[state.anchors.length - 1].measure !== xmlEvent.measure
-                if (isNewMeasure) newAnchors.push({ measure: xmlEvent.measure, time: ghostTime })
-                if (xmlEvent.beat > 1.01) newBeatAnchors.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: ghostTime })
-
+                // Accuracy dropped below 80% over last 20 events — stop cleanly.
+                // Do NOT add more anchors from this point; everything up to here is reliable.
+                v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCount / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 80%). Mapped ${state.anchors.length} measure anchors reliably.`)
                 return {
                     ...state,
-                    anchors: newAnchors,
-                    beatAnchors: newBeatAnchors,
                     recentOutcomes: outcomes,
                     ghostAnchor: null,
                     consecutiveMisses: 0,
-                    straySkipCursor: undefined, // Reset: runaway recovery advances event
-                    currentEventIndex: recoveryNextIndex,
-                    lastAnchorTime: ghostTime,
-                    lastAnchorGlobalBeat: xmlEvent.globalBeat,
-                    status: recoveryNextIndex >= xmlEvents.length ? 'done' : 'running',
+                    straySkipCursor: undefined,
+                    status: 'done', // Stop — anchors so far are reliable, don't cascade bad data
                 }
             }
 
@@ -1007,27 +1001,19 @@ export function stepV5(
                 v5LogFor(xmlEvent, `[V5] ⏩ Dead-reckon M${xmlEvent.measure} B${xmlEvent.beat} → ${deadReckonTime.toFixed(3)}s (no onset anywhere) [misses=${state.consecutiveMisses + 1}]`)
 
                 const outcomes = pushOutcome(state.recentOutcomes, 'dead-reckon')
-                v5LogFor(xmlEvent, `[V5 DEAD-RECKON] outcomes=${outcomes.join(',')} bad=${outcomes.filter(o => o !== 'match').length}/10`)
+                const badCountDR = outcomes.filter(o => o !== 'match').length
+                v5LogFor(xmlEvent, `[V5 DEAD-RECKON] outcomes=${outcomes.join(',')} bad=${badCountDR}/${outcomes.length} accuracy=${Math.round((1 - badCountDR / Math.max(1, outcomes.length)) * 100)}%`)
                 if (isRunaway(outcomes)) {
-                    v5WarnRunaway(xmlEvent, outcomes.filter(o => o !== 'match').length)
-                    const newAnchors = [...state.anchors]
-                    const newBeatAnchors = [...state.beatAnchors]
-                    const isNewMeasure = state.anchors.length === 0 || state.anchors[state.anchors.length - 1].measure !== xmlEvent.measure
-                    if (isNewMeasure) newAnchors.push({ measure: xmlEvent.measure, time: deadReckonTime })
-                    if (xmlEvent.beat > 1.01) newBeatAnchors.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: deadReckonTime })
-
+                    // Accuracy dropped below 80% over last 20 events — stop cleanly.
+                    // Do NOT add more anchors from this point; everything up to here is reliable.
+                    v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCountDR / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 80%). Mapped ${state.anchors.length} measure anchors reliably.`)
                     return {
                         ...state,
-                        anchors: newAnchors,
-                        beatAnchors: newBeatAnchors,
                         recentOutcomes: outcomes,
                         ghostAnchor: null,
                         consecutiveMisses: 0,
-                        straySkipCursor: undefined, // Reset: runaway dead-reckon recovery advances event
-                        currentEventIndex: nextIndex,
-                        lastAnchorTime: deadReckonTime,
-                        lastAnchorGlobalBeat: xmlEvent.globalBeat,
-                        status: nextIndex >= xmlEvents.length ? 'done' : 'running',
+                        straySkipCursor: undefined,
+                        status: 'done', // Stop — anchors so far are reliable, don't cascade bad data
                     }
                 }
 
