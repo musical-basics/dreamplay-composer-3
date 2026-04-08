@@ -327,6 +327,23 @@ function expandToOctaveEquivalents(pitches: number[]): number[] {
 }
 
 /**
+ * Expand a MIDI pitch list to include ±1 semitone neighbors within piano range [21, 108].
+ * Used as a last-resort fallback when the performer plays a wrong accidental
+ * (e.g. C# instead of C♮, or B♭ instead of B♮). Only shifts by ±1 semitone —
+ * does NOT expand octaves (kept specific to avoid false positives).
+ */
+function expandToSemitoneNeighbors(pitches: number[]): number[] {
+    const expanded = new Set<number>(pitches)
+    for (const p of pitches) {
+        for (const shift of [-1, 1]) {
+            const neighbor = p + shift
+            if (neighbor >= 21 && neighbor <= 108) expanded.add(neighbor)
+        }
+    }
+    return [...expanded]
+}
+
+/**
  * Process the next xmlEvent. Returns updated state.
  * - Match found → status stays 'running', anchors updated
  * - No match → status = 'paused', ghostAnchor placed
@@ -730,7 +747,17 @@ export function stepV5(
 
         const nextIndex = state.currentEventIndex + 1
 
-        v5LogFor(xmlEvent, `[V5] ✓ M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | matched ${matchedCount}/${expectedCount} pitches=[${chord.notes.map(n => n.pitch)}] | AQNTL=${newAqntl.toFixed(3)}s (${(60 / newAqntl).toFixed(1)} BPM)${preserveTempoEstimate ? ' [tempo held]' : ''}`)
+        // Advance midiCursor past the matched chord cluster AND any lingering notes
+        // within the chord-threshold window. This prevents the next event's scan from
+        // reaching back into the same cluster when the same pitch recurs immediately
+        // (e.g. repeated C#4 downbeats in Fantaisie Impromptu LH after decimation).
+        const chordWindowEnd = anchorTime + Math.max(0.100, newAqntl * state.chordThresholdFraction)
+        let postChordCursor = chord.lastIndex + 1
+        while (postChordCursor < sorted.length && sorted[postChordCursor].startTimeSec <= chordWindowEnd) {
+            postChordCursor++
+        }
+
+        v5LogFor(xmlEvent, `[V5] ✓ M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | matched ${matchedCount}/${expectedCount} pitches=[${chord.notes.map(n => n.pitch)}] | AQNTL=${newAqntl.toFixed(3)}s (${(60 / newAqntl).toFixed(1)} BPM)${preserveTempoEstimate ? ' [tempo held]' : ''} | cursor ${chord.lastIndex + 1}→${postChordCursor}`)
 
         return {
             ...state,
@@ -738,7 +765,7 @@ export function stepV5(
             beatAnchors: newBeatAnchors,
             ghostAnchor: null,
             aqntl: newAqntl,
-            midiCursor: chord.lastIndex + 1,
+            midiCursor: postChordCursor,
             straySkipCursor: undefined, // Reset: confirmed match, clean slate for next event
             currentEventIndex: nextIndex,
             lastAnchorTime: anchorTime,
@@ -913,8 +940,59 @@ export function stepV5(
                         status: nextIndexOct >= xmlEvents.length ? 'done' : 'running',
                     }
                 }
-                v5LogFor(xmlEvent, `[V5 OCTAVE-FALLBACK] No match even with octave expansion -> proceeding to dead-reckon`)
+                v5LogFor(xmlEvent, `[V5 OCTAVE-FALLBACK] No match even with octave expansion -> trying semitone neighbor fallback`)
             }
+        }
+
+        // ─── SEMITONE-NEIGHBOR FALLBACK ───
+        // The performer may have played a wrong accidental (±1 semitone misplay),
+        // e.g. C# instead of the written C♮. This handles that without cascading
+        // dead-reckoning errors. Only kicks in after exact + octave fallbacks fail.
+        const semitoneExpanded = expandToSemitoneNeighbors(xmlEvent.pitches)
+        if (semitoneExpanded.length > xmlEvent.pitches.length) {
+            const semitoneResync = findContinuityResyncMatch(
+                semitoneExpanded,
+                sorted,
+                scanStartIndex,
+                expectedTime,
+                state.lastAnchorTime,
+                expectedDelta,
+                state.aqntl,
+                state.chordThresholdFraction,
+                beatsElapsed
+            )
+            if (semitoneResync) {
+                const chord = semitoneResync.chord
+                const anchorTime = semitoneResync.anchorTime
+                const newAnchorsST = [...state.anchors]
+                const newBeatAnchorsST = [...state.beatAnchors]
+                const isNewMeasureST = newAnchorsST.length === 0 || newAnchorsST[newAnchorsST.length - 1].measure !== xmlEvent.measure
+                if (isNewMeasureST) newAnchorsST.push({ measure: xmlEvent.measure, time: anchorTime })
+                if (xmlEvent.beat > 1.01) newBeatAnchorsST.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: anchorTime })
+                const nextIndexST = state.currentEventIndex + 1
+                v5LogFor(xmlEvent,
+                    `[V5] 🎵 Semitone-neighbor resync M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
+                    `matched MIDI pitch(es)=[${chord.notes.map(n => n.pitch).join(',')}] ` +
+                    `(expected=[${xmlEvent.pitches.join(',')}], ±1 semitone expansion applied — likely wrong accidental played)`
+                )
+                return {
+                    ...state,
+                    anchors: newAnchorsST,
+                    beatAnchors: newBeatAnchorsST,
+                    ghostAnchor: null,
+                    aqntl: state.aqntl, // Don't update AQNTL from a misplay match
+                    midiCursor: chord.lastIndex + 1,
+                    straySkipCursor: undefined,
+                    currentEventIndex: nextIndexST,
+                    lastAnchorTime: anchorTime,
+                    lastAnchorGlobalBeat: xmlEvent.globalBeat,
+                    afterFermata: xmlEvent.hasFermata || false,
+                    consecutiveMisses: 0,
+                    recentOutcomes: pushOutcome(state.recentOutcomes, 'match'),
+                    status: nextIndexST >= xmlEvents.length ? 'done' : 'running',
+                }
+            }
+            v5LogFor(xmlEvent, `[V5 SEMITONE-FALLBACK] No match even with ±1 semitone expansion -> proceeding to dead-reckon`)
         }
 
         // No match anywhere — this beat has no new onset (held note, rest, ornament)
