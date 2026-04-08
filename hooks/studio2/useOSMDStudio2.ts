@@ -88,6 +88,12 @@ export function useOSMD(
             osmd.EngravingRules.RenderXMeasuresPerLineAkaSystem = 0
             osmd.EngravingRules.SheetMaximumWidth = Number.MAX_SAFE_INTEGER
 
+            // ── Reduce vertical gap between treble & bass staves ──────────────
+            // Default BetweenStaffDistance is ~4 units; 2 brings them visually closer.
+            osmd.EngravingRules.BetweenStaffDistance = 2
+            // Suppress phantom label gap at the left of the first system.
+            osmd.EngravingRules.InstrumentLabelTextHeight = 0
+
             // Render in progressively wider containers until OSMD settles to
             // a single horizontal system (or we hit a conservative cap).
             const container = containerRef.current!
