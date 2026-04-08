@@ -69,16 +69,15 @@ function pushOutcome(outcomes: Outcome[], outcome: Outcome): Outcome[] {
 }
 
 /**
- * Check if accuracy has dropped below 50% over the last 20 events.
- * If ≥10/20 outcomes are non-matches (<50% accuracy), the mapper is confused
+ * Check if accuracy has dropped below 80% over the last 20 events.
+ * If ≥5/20 outcomes are non-matches (<80% accuracy), the mapper is confused
  * and should stop rather than cascade bad anchors across the rest of the piece.
- * (Lowered from 80% so the mapper can push through harmonically dense passages
- * like E-major arpeggios where multiple repeated pitches cause note-stealing.)
+ * Use the 'Continue from M{X}' button to manually resume past a hard passage.
  */
 function isRunaway(outcomes: Outcome[]): boolean {
     if (outcomes.length < 20) return false
     const badCount = outcomes.filter((o: Outcome) => o !== 'match').length
-    return badCount >= 10 // <50% match rate over last 20 events
+    return badCount >= 5 // <80% match rate over last 20 events
 }
 
 /** Find first MIDI note whose pitch matches any of the expected pitches */
@@ -800,9 +799,9 @@ export function stepV5(
             const badCount = outcomes.filter(o => o !== 'match').length
             v5LogFor(xmlEvent, `[V5 STRAY] outcomes=${outcomes.join(',')} bad=${badCount}/${outcomes.length} accuracy=${Math.round((1 - badCount / Math.max(1, outcomes.length)) * 100)}%`)
             if (isRunaway(outcomes)) {
-                // Accuracy dropped below 50% over last 20 events — stop cleanly.
+                // Accuracy dropped below 80% over last 20 events — stop cleanly.
                 // Do NOT add more anchors from this point; everything up to here is reliable.
-                v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCount / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 50%). Mapped ${state.anchors.length} measure anchors reliably.`)
+                v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCount / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 80%). Use 'Continue from M${xmlEvent.measure}' to resume manually.`)
                 return {
                     ...state,
                     recentOutcomes: outcomes,
@@ -1121,9 +1120,9 @@ export function stepV5(
                 const badCountDR = outcomes.filter(o => o !== 'match').length
                 v5LogFor(xmlEvent, `[V5 DEAD-RECKON] outcomes=${outcomes.join(',')} bad=${badCountDR}/${outcomes.length} accuracy=${Math.round((1 - badCountDR / Math.max(1, outcomes.length)) * 100)}%`)
                 if (isRunaway(outcomes)) {
-                    // Accuracy dropped below 50% over last 20 events — stop cleanly.
+                    // Accuracy dropped below 80% over last 20 events — stop cleanly.
                     // Do NOT add more anchors from this point; everything up to here is reliable.
-                    v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCountDR / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 50%). Mapped ${state.anchors.length} measure anchors reliably.`)
+                    v5Log(`[V5] 🛑 Stopping at M${xmlEvent.measure} B${xmlEvent.beat}: accuracy ${Math.round((1 - badCountDR / outcomes.length) * 100)}% over last ${outcomes.length} events (threshold 80%). Use 'Continue from M${xmlEvent.measure}' to resume manually.`)
                     return {
                         ...state,
                         recentOutcomes: outcomes,
