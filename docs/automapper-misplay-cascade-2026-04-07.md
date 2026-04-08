@@ -127,3 +127,25 @@ function expandToSemitoneNeighbors(pitches: number[]): number[] {
 When the octave fallback is active, check for **enharmonic equivalents of the expected pitch** in the surrounding MIDI chord clusters. B#4=C5, E#4=F4, Cb5=B4, Fb4=E4 are common sources of false positives in chromatic passages because they appear naturally in neighboring harmonies.
 
 The time window for `findContinuityResyncMatch` is wide enough (~0.45s upper slack) to reach into the next beat's material, which is why the false positive was not caught by timing alone.
+
+---
+
+## Follow-up Regression: M6 B4.75 False Positive (Same Session)
+
+**Commit:** `1f5a278`
+
+### Symptom
+After the M8 fix (semitone before octave), M6 B4.75 suddenly appeared at 13.37s instead of ~12.78s. Gap from B4.5 (12.65s) to B4.75 (13.37s) = 0.72s for 0.25 beats — impossibly slow.
+
+### Root Cause
+The semitone fallback was using `findContinuityResyncMatch` which searches up to ~1 beat ahead of expected time. M6 B4.75 expects D#3=51. The performer **skipped** this note and jumped to M7 content. Semitone expansion of D#3=51 = `[D3=50, D#3=51, E3=52]`. E3=52 appeared at 13.37s (M7's arpeggio). Since the continuity-resync window reached to 13.77s, E3 was grabbed and M6 B4.75 was wrongly anchored at 13.37s.
+
+### Key distinction from M8 bug
+- **M8:** The note WAS played (C#3 instead of C♮3) at the RIGHT TIME → broad search needed to catch it  
+- **M6:** The note was NOT played; a different note appeared 0.72s later from a different beat → broad search was wrong to grab it
+
+### Fix
+Semitone fallback now uses `scanWindow` with the **same tight `[searchStart, searchEnd]` window** (±20% of expected delta) as the normal scan. A misplay by definition occurs at the correct beat time. If the ±1 semitone note is outside the normal window, it belongs to a different beat, not a misplay.
+
+- M8 C#3=49 at 15.52s, window `[15.28, 15.62]` → inside → ✅ correctly caught  
+- M6 E3=52 at 13.37s, window `[12.64, 12.82]` → outside → ✅ correctly ignored
