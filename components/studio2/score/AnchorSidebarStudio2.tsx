@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useState } from 'react'
-import { Trash2, ChevronDown, Wand2, Layers, Settings2 } from 'lucide-react'
+import { Trash2, ChevronDown, Wand2, Layers, Settings2, Minus, PlayCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Accordion,
@@ -26,6 +26,7 @@ interface AnchorSidebarProps {
     onToggleLevel2: (enabled: boolean) => void
     onSetBeatAnchor?: (measure: number, beat: number, time: number) => void
     onDeleteBeatAnchor?: (measure: number, beat: number) => void
+    onSetMeasureConstant?: (measure: number) => void
     onTap?: () => void
     onClearAll?: () => void
     onAutoMap?: (chordThresholdFraction: number) => void
@@ -33,6 +34,7 @@ interface AnchorSidebarProps {
     onProceedMapping?: () => void
     onRunV5ToEnd?: () => void
     onUpdateGhostTime?: (time: number) => void
+    onMapFromLatestAnchor?: () => void
     v5State?: V5MapperState | null
     isAiMapping?: boolean
 }
@@ -49,6 +51,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     onToggleLevel2,
     onSetBeatAnchor,
     onDeleteBeatAnchor,
+    onSetMeasureConstant,
     onTap,
     onClearAll,
     onAutoMap,
@@ -56,6 +59,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     onProceedMapping,
     onRunV5ToEnd,
     onUpdateGhostTime,
+    onMapFromLatestAnchor,
     v5State = null,
     isAiMapping = false,
 }) => {
@@ -74,6 +78,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
             const beats = isLevel2Mode && beatAnchors.length > 0
                 ? beatAnchors.filter(b => b.measure === m).sort((a, b) => a.beat - b.beat)
                 : []
+            const hasBeatAnchors = beatAnchors.some(b => b.measure === m)
 
             rows.push(
                 <React.Fragment key={m}>
@@ -90,6 +95,15 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
                             className={`flex-1 px-2 py-1 rounded font-mono text-xs ${darkMode ? 'bg-zinc-800 border-zinc-600 text-emerald-400' : 'bg-zinc-100 border-zinc-300 text-emerald-600'} border`}
                         />
                         <span className="text-zinc-500">s</span>
+                        {onSetMeasureConstant && hasBeatAnchors && (
+                            <button
+                                onClick={() => onSetMeasureConstant(m)}
+                                className="text-zinc-500 hover:text-amber-400 p-0.5 transition-colors"
+                                title={`Flatten M${m} to constant speed (remove sub-beat anchors)`}
+                            >
+                                <Minus className="w-3 h-3" />
+                            </button>
+                        )}
                         {m !== 1 && (
                             <button onClick={() => onDeleteAnchor(m)} className="text-red-400 hover:text-red-500 p-0.5">
                                 <Trash2 className="w-3 h-3" />
@@ -174,6 +188,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
                         <V5Controls
                             darkMode={darkMode}
                             border={border}
+                            anchors={anchors}
                             currentMeasure={currentMeasure}
                             isAiMapping={isAiMapping}
                             v5State={v5State}
@@ -184,6 +199,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
                             onProceedMapping={onProceedMapping}
                             onRunV5ToEnd={onRunV5ToEnd}
                             onUpdateGhostTime={onUpdateGhostTime}
+                            onMapFromLatestAnchor={onMapFromLatestAnchor}
                         />
                     </AccordionContent>
                 </AccordionItem>
@@ -217,6 +233,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
 interface V5ControlsProps {
     darkMode: boolean
     border: string
+    anchors: Anchor[]
     currentMeasure: number
     isAiMapping: boolean
     v5State?: V5MapperState | null
@@ -227,15 +244,18 @@ interface V5ControlsProps {
     onProceedMapping?: () => void
     onRunV5ToEnd?: () => void
     onUpdateGhostTime?: (time: number) => void
+    onMapFromLatestAnchor?: () => void
 }
 
 const V5Controls: React.FC<V5ControlsProps> = ({
-    darkMode, border, currentMeasure, isAiMapping, v5State,
+    darkMode, border, anchors, currentMeasure, isAiMapping, v5State,
     onClearAll, onTap, onAutoMap,
     onConfirmGhost, onProceedMapping, onRunV5ToEnd, onUpdateGhostTime,
+    onMapFromLatestAnchor,
 }) => {
     const [chordThreshold, setChordThreshold] = useState<number>(0.0625) // 64th note default
     const isV5Active = v5State && (v5State.status === 'running' || v5State.status === 'paused')
+    const lastMappedMeasure = anchors.length > 0 ? Math.max(...anchors.map(a => a.measure)) : 0
 
     return (
         <div className="flex flex-col gap-4">
@@ -257,7 +277,7 @@ const V5Controls: React.FC<V5ControlsProps> = ({
                 )}
             </div>
 
-            {/* AI Control Button */}
+            {/* AI Control + Resume Buttons */}
             <Button
                 size="sm"
                 onClick={() => onAutoMap?.(chordThreshold)}
@@ -274,6 +294,21 @@ const V5Controls: React.FC<V5ControlsProps> = ({
                     )
                 }
             </Button>
+
+            {/* Resume from latest anchor button */}
+            {!isV5Active && onMapFromLatestAnchor && lastMappedMeasure > 0 && (
+                <Button
+                    size="sm"
+                    onClick={onMapFromLatestAnchor}
+                    disabled={isAiMapping}
+                    className="w-full text-[11px] font-bold h-8 transition-all disabled:opacity-50 bg-sky-700 hover:bg-sky-600 shadow-md shadow-sky-500/20 text-white"
+                >
+                    <div className="flex items-center gap-2">
+                        <PlayCircle className="w-3.5 h-3.5" />
+                        Continue from M{lastMappedMeasure}
+                    </div>
+                </Button>
+            )}
 
             {/* V5 Paused State: Ghost Anchor Controls */}
             {v5State?.status === 'paused' && v5State.ghostAnchor && (

@@ -464,6 +464,48 @@ export default function AdminEditor() {
         setBeatAnchors((prev) => prev.filter((b) => !(b.measure === measure && b.beat === beat)))
     }, [setBeatAnchors])
 
+    /** Remove all sub-beat anchors for a measure — keeps just the linear measure anchor */
+    const handleSetMeasureConstant = useCallback((measure: number) => {
+        setBeatAnchors((prev) => prev.filter((b) => b.measure !== measure))
+    }, [setBeatAnchors])
+
+    /** Resume AutoMapperV5 from the latest manually-set measure anchor forward */
+    const handleMapFromLatestAnchor = useCallback(async () => {
+        if (!parsedMidi) { alert('Please load a MIDI file first.'); return; }
+        if (anchors.length === 0) { alert('No anchors set yet.'); return; }
+
+        setIsAiMapping(true);
+        try {
+            const { resumeFromAnchor, stepV5 } = await import('@/lib/engine/AutoMapperV5');
+            const evts = resolvedXmlEventsRef.current.length > 0 ? resolvedXmlEventsRef.current : xmlEventsRef.current;
+
+            let state = resumeFromAnchor(anchors, beatAnchors, parsedMidi.notes, evts, 0.0625);
+
+            while (state.status === 'running') {
+                state = stepV5(state, parsedMidi.notes, evts);
+            }
+
+            setV5State(state);
+
+            if (state.status === 'done' || state.status === 'paused') {
+                setAnchors(state.anchors);
+                setBeatAnchors(state.beatAnchors);
+                setIsLevel2Mode(true);
+                updateConfigAction(configId, {
+                    anchors: state.anchors,
+                    beat_anchors: state.beatAnchors,
+                    is_level2: true,
+                    subdivision,
+                }).catch(err => console.error('[MapFromLatest] Failed to auto-save:', err));
+            }
+        } catch (err) {
+            console.error('[MapFromLatest Error]', err);
+            alert('Failed to resume mapping (check console).');
+        } finally {
+            setIsAiMapping(false);
+        }
+    }, [parsedMidi, anchors, beatAnchors, setAnchors, setBeatAnchors, setIsLevel2Mode, configId, subdivision]);
+
 
     const handlePlayPause = async () => {
         const pm = getPlaybackManager()
@@ -850,6 +892,8 @@ export default function AdminEditor() {
                     onDeleteAnchor={handleDeleteAnchor}
                     onSetBeatAnchor={handleSetBeatAnchor}
                     onDeleteBeatAnchor={handleDeleteBeatAnchor}
+                    onSetMeasureConstant={handleSetMeasureConstant}
+                    onMapFromLatestAnchor={handleMapFromLatestAnchor}
                     onToggleLevel2={setIsLevel2Mode}
                     onTap={handleTap}
                     onClearAll={handleClearAll}

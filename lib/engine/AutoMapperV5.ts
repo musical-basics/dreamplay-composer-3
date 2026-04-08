@@ -316,6 +316,115 @@ export function initV5(
 }
 
 /**
+ * Resume V5 mapping forward from the latest confirmed measure anchor.
+ *
+ * Use case: the user has manually set a measure anchor (e.g. M13 = 26.00s)
+ * and wants the mapper to continue from that point without re-running from M1.
+ * All existing anchors and beat anchors are preserved in the returned state.
+ *
+ * Algorithm:
+ *   1. Find the last measure anchor (highest measure number) in `anchors`.
+ *   2. Find the XML event index for the first sub-beat AFTER that anchor.
+ *   3. Advance the MIDI cursor to the first note at or after the anchor time.
+ *   4. Compute AQNTL from the last two measure anchors (falls back to 120 BPM).
+ *   5. Return a V5MapperState with status 'running', ready for stepV5().
+ */
+export function resumeFromAnchor(
+    anchors: Anchor[],
+    beatAnchors: BeatAnchor[],
+    midiNotes: NoteEvent[],
+    xmlEvents: XMLEvent[],
+    chordThresholdFraction: number = 0.0625
+): V5MapperState {
+    if (anchors.length === 0 || xmlEvents.length === 0 || midiNotes.length === 0) {
+        return initV5(midiNotes, xmlEvents, 0, chordThresholdFraction)
+    }
+
+    // ── 1. Find last measure anchor ──────────────────────────────────────
+    const sortedAnchors = [...anchors].sort((a, b) => a.measure - b.measure)
+    const lastAnchor = sortedAnchors[sortedAnchors.length - 1]
+    const { measure: lastMeasure, time: lastTime } = lastAnchor
+
+    // ── 2. Find XML event index: first event strictly AFTER the anchor beat ──
+    // Locate beat-1 of lastMeasure to get its globalBeat, then skip past it.
+    let lastAnchorGlobalBeat = 0
+    let anchorBeatXmlIndex = -1
+    for (let i = 0; i < xmlEvents.length; i++) {
+        const ev = xmlEvents[i]
+        if (ev.measure === lastMeasure && ev.beat <= 1.01) {
+            lastAnchorGlobalBeat = ev.globalBeat
+            anchorBeatXmlIndex = i
+            break
+        }
+    }
+
+    // startEventIndex = first event that is (a) a sub-beat of lastMeasure (beat > 1)
+    // or (b) the first event of lastMeasure+1 or later.
+    let startEventIndex = xmlEvents.length // default = already done
+    const scanFrom = anchorBeatXmlIndex >= 0 ? anchorBeatXmlIndex : 0
+    for (let i = scanFrom; i < xmlEvents.length; i++) {
+        const ev = xmlEvents[i]
+        if (ev.measure > lastMeasure || (ev.measure === lastMeasure && ev.beat > 1.01)) {
+            startEventIndex = i
+            break
+        }
+    }
+
+    // ── 3. Advance MIDI cursor to first note at or just before lastTime ───
+    const sorted = [...midiNotes].sort((a, b) => a.startTimeSec - b.startTimeSec)
+    let midiCursor = sorted.length
+    for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].startTimeSec >= lastTime - 0.05) { // 50ms lookback for chord overlap
+            midiCursor = i
+            break
+        }
+    }
+
+    // ── 4. Compute AQNTL from last two measure anchors ───────────────────
+    let aqntl = 0.5 // fallback: 120 BPM
+    if (sortedAnchors.length >= 2) {
+        const prevAnchor = sortedAnchors[sortedAnchors.length - 2]
+        let prevGlobalBeat = 0
+        for (const ev of xmlEvents) {
+            if (ev.measure === prevAnchor.measure && ev.beat <= 1.01) {
+                prevGlobalBeat = ev.globalBeat
+                break
+            }
+        }
+        const beatsDiff = lastAnchorGlobalBeat - prevGlobalBeat
+        const timeDiff = lastAnchor.time - prevAnchor.time
+        if (beatsDiff > 0 && timeDiff > 0) {
+            aqntl = timeDiff / beatsDiff
+        }
+    }
+
+    const state: V5MapperState = {
+        status: startEventIndex >= xmlEvents.length ? 'done' : 'running',
+        currentEventIndex: startEventIndex,
+        anchors: sortedAnchors,
+        beatAnchors: [...beatAnchors],
+        ghostAnchor: null,
+        aqntl,
+        midiCursor,
+        chordThresholdFraction,
+        lastAnchorTime: lastTime,
+        lastAnchorGlobalBeat,
+        recentOutcomes: [],
+        consecutiveMisses: 0,
+        afterFermata: false,
+        straySkipCursor: undefined,
+        lastRealMatchTime: lastTime,
+    }
+
+    debug.log(
+        `[V5 Resume] From M${lastMeasure} @ ${lastTime.toFixed(3)}s | ` +
+        `aqntl=${aqntl.toFixed(3)}s/beat (${(60 / aqntl).toFixed(0)} BPM) | ` +
+        `startEventIdx=${startEventIndex} | midiCursor=${midiCursor}`
+    )
+    return state
+}
+
+/**
  * Expand a MIDI pitch list to include all octave variants within the piano range [21, 108].
  * Used as a last-resort fallback when the performer plays notes in the wrong octave
  * (e.g. C#1+C#2 instead of the written C#2+C#3). Pitch-class identity (note % 12)
