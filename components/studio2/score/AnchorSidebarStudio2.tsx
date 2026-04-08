@@ -18,6 +18,7 @@ interface AnchorSidebarProps {
     anchors: Anchor[]
     beatAnchors?: BeatAnchor[]
     currentMeasure: number
+    currentTime?: number
     totalMeasures: number
     isLevel2Mode: boolean
     darkMode?: boolean
@@ -27,6 +28,7 @@ interface AnchorSidebarProps {
     onSetBeatAnchor?: (measure: number, beat: number, time: number) => void
     onDeleteBeatAnchor?: (measure: number, beat: number) => void
     onSetMeasureConstant?: (measure: number) => void
+    onAddAnchor?: (measure: number, time: number) => void
     onTap?: () => void
     onClearAll?: () => void
     onAutoMap?: (chordThresholdFraction: number) => void
@@ -43,6 +45,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     anchors,
     beatAnchors = [],
     currentMeasure,
+    currentTime = 0,
     totalMeasures,
     isLevel2Mode,
     darkMode = false,
@@ -52,6 +55,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     onSetBeatAnchor,
     onDeleteBeatAnchor,
     onSetMeasureConstant,
+    onAddAnchor,
     onTap,
     onClearAll,
     onAutoMap,
@@ -143,8 +147,21 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
             )
         } else {
             rows.push(
-                <div key={m} className={`flex items-center justify-between mt-1 p-2 rounded text-xs border border-dashed opacity-60 ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'}`}>
-                    <span className={`font-mono ${darkMode ? 'text-red-400' : 'text-red-400'}`}>M{m} (Ghost)</span>
+                <div key={m} className={`flex items-center justify-between gap-2 mt-1 p-2 rounded text-xs border border-dashed ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'}`}>
+                    <span className={`font-mono opacity-60 ${darkMode ? 'text-red-400' : 'text-red-400'}`}>M{m} (Ghost)</span>
+                    {onAddAnchor && (
+                        <button
+                            onClick={() => onAddAnchor(m, currentTime)}
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                                darkMode
+                                    ? 'bg-emerald-800/60 hover:bg-emerald-700 text-emerald-300 border border-emerald-700'
+                                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300'
+                            }`}
+                            title={`Set M${m} anchor to current playback time (${currentTime.toFixed(2)}s)`}
+                        >
+                            + Add M{m}
+                        </button>
+                    )}
                 </div>
             )
         }

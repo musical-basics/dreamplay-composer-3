@@ -469,6 +469,13 @@ export default function AdminEditor() {
         setBeatAnchors((prev) => prev.filter((b) => b.measure !== measure))
     }, [setBeatAnchors])
 
+    /** Add (or overwrite) a measure anchor at a given time — converts a Ghost row to a real anchor */
+    const handleAddAnchor = useCallback((measure: number, time: number) => {
+        const updated: import('@/lib/types').Anchor[] = [...anchors.filter((a) => a.measure !== measure), { measure, time }]
+            .sort((a, b) => a.measure - b.measure)
+        setAnchors(updated)
+    }, [anchors, setAnchors])
+
     /** Resume AutoMapperV5 from the latest manually-set measure anchor forward */
     const handleMapFromLatestAnchor = useCallback(async () => {
         if (!parsedMidi) { alert('Please load a MIDI file first.'); return; }
@@ -894,7 +901,9 @@ export default function AdminEditor() {
                     onSetBeatAnchor={handleSetBeatAnchor}
                     onDeleteBeatAnchor={handleDeleteBeatAnchor}
                     onSetMeasureConstant={handleSetMeasureConstant}
+                    onAddAnchor={handleAddAnchor}
                     onMapFromLatestAnchor={handleMapFromLatestAnchor}
+                    currentTime={displayTime}
                     onToggleLevel2={setIsLevel2Mode}
                     onTap={handleTap}
                     onClearAll={handleClearAll}
