@@ -445,7 +445,9 @@ export default function AdminEditor() {
     const handleDeleteAnchor = useCallback((measure: number) => {
         if (measure === 1) return
         setAnchors(anchors.filter((a) => a.measure !== measure))
-    }, [anchors, setAnchors])
+        // Cascade: also remove all beat anchors for this measure
+        setBeatAnchors((prev) => prev.filter((b) => b.measure !== measure))
+    }, [anchors, setAnchors, setBeatAnchors])
 
     const handleSetBeatAnchor = useCallback((measure: number, beat: number, time: number) => {
         setBeatAnchors((prev) => {
@@ -456,6 +458,10 @@ export default function AdminEditor() {
                 return a.beat - b.beat
             })
         })
+    }, [setBeatAnchors])
+
+    const handleDeleteBeatAnchor = useCallback((measure: number, beat: number) => {
+        setBeatAnchors((prev) => prev.filter((b) => !(b.measure === measure && b.beat === beat)))
     }, [setBeatAnchors])
 
 
@@ -843,6 +849,7 @@ export default function AdminEditor() {
                     onSetAnchor={handleSetAnchor}
                     onDeleteAnchor={handleDeleteAnchor}
                     onSetBeatAnchor={handleSetBeatAnchor}
+                    onDeleteBeatAnchor={handleDeleteBeatAnchor}
                     onToggleLevel2={setIsLevel2Mode}
                     onTap={handleTap}
                     onClearAll={handleClearAll}

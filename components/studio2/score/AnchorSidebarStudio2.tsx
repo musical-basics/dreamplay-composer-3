@@ -25,6 +25,7 @@ interface AnchorSidebarProps {
     onDeleteAnchor: (measure: number) => void
     onToggleLevel2: (enabled: boolean) => void
     onSetBeatAnchor?: (measure: number, beat: number, time: number) => void
+    onDeleteBeatAnchor?: (measure: number, beat: number) => void
     onTap?: () => void
     onClearAll?: () => void
     onAutoMap?: (chordThresholdFraction: number) => void
@@ -47,6 +48,7 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
     onDeleteAnchor,
     onToggleLevel2,
     onSetBeatAnchor,
+    onDeleteBeatAnchor,
     onTap,
     onClearAll,
     onAutoMap,
@@ -109,6 +111,15 @@ export const AnchorSidebar: React.FC<AnchorSidebarProps> = ({
                                                 : 'bg-yellow-50 border-yellow-200 text-zinc-700 focus:bg-white focus:ring-yellow-400'
                                                 }`}
                                         />
+                                        {onDeleteBeatAnchor && (
+                                            <button
+                                                onClick={() => onDeleteBeatAnchor(m, b.beat)}
+                                                className="text-zinc-600 hover:text-red-400 p-0.5 transition-colors"
+                                                title={`Delete B${b.beat}`}
+                                            >
+                                                <Trash2 className="w-2.5 h-2.5" />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

@@ -943,26 +943,26 @@ export function stepV5(
         // ─── OCTAVE-EQUIVALENT FALLBACK ───
         // The performer may have played the right pitch class but in the wrong octave
         // (e.g. C#1+C#2 instead of C#2+C#3). Expand the expected pitches to all octave
-        // variants within piano range and retry the continuity resync once.
+        // variants within piano range and retry with the tight scan window.
         // NOTE: runs AFTER semitone fallback to avoid stealing enharmonically equivalent
         // notes from neighboring beats (e.g. C♮→C5=B#4 confusion).
+        //
+        // IMPORTANT: uses the SAME TIGHT window [searchStart, searchEnd] as the normal
+        // scan and the semitone fallback. A wrong-octave misplay is still at the correct
+        // beat time. If the octave-equivalent note is outside the normal window, it
+        // belongs to a different beat (e.g. B#4=C5 in next measure's arpeggio).
         if (xmlEvent.pitches.length > 0) {
             const octavePitches = expandToOctaveEquivalents(xmlEvent.pitches)
             if (octavePitches.length > xmlEvent.pitches.length) {
-                const octaveResync = findContinuityResyncMatch(
-                    octavePitches,
-                    sorted,
-                    scanStartIndex,
-                    expectedTime,
-                    state.lastAnchorTime,
-                    expectedDelta,
-                    state.aqntl,
-                    state.chordThresholdFraction,
-                    beatsElapsed
-                )
-                if (octaveResync) {
-                    const chord = octaveResync.chord
-                    const anchorTime = octaveResync.anchorTime
+                const octaveWindowMatches = scanWindow(octavePitches, sorted, scanStartIndex, searchStart, searchEnd)
+                if (octaveWindowMatches.length > 0) {
+                    const chordThreshold = Math.max(0.100, state.aqntl * state.chordThresholdFraction)
+                    // Pick the match closest to expectedTime within the tight window
+                    const bestOct = octaveWindowMatches.reduce((best, m) =>
+                        Math.abs(m.time - expectedTime) < Math.abs(best.time - expectedTime) ? m : best
+                    )
+                    const chord = extractChord(octavePitches, sorted, bestOct.index, bestOct.time, chordThreshold)
+                    const anchorTime = bestOct.time
                     const newAnchorsOct = [...state.anchors]
                     const newBeatAnchorsOct = [...state.beatAnchors]
                     const isNewMeasureOct = newAnchorsOct.length === 0 || newAnchorsOct[newAnchorsOct.length - 1].measure !== xmlEvent.measure
@@ -970,9 +970,9 @@ export function stepV5(
                     if (xmlEvent.beat > 1.01) newBeatAnchorsOct.push({ measure: xmlEvent.measure, beat: xmlEvent.beat, time: anchorTime })
                     const nextIndexOct = state.currentEventIndex + 1
                     v5LogFor(xmlEvent,
-                        `[V5] 🎵 Octave-equiv resync M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
+                        `[V5] 🎵 Octave-equiv (tight window) M${xmlEvent.measure} B${xmlEvent.beat} → ${anchorTime.toFixed(3)}s | ` +
                         `matched MIDI pitch(es)=[${chord.notes.map(n => n.pitch).join(',')}] ` +
-                        `(expected=[${xmlEvent.pitches.join(',')}], expanded=[${octavePitches.join(',')}])`
+                        `(expected=[${xmlEvent.pitches.join(',')}], window=[${searchStart.toFixed(3)},${searchEnd.toFixed(3)}])`
                     )
                     return {
                         ...state,
@@ -991,7 +991,7 @@ export function stepV5(
                         status: nextIndexOct >= xmlEvents.length ? 'done' : 'running',
                     }
                 }
-                v5LogFor(xmlEvent, `[V5 OCTAVE-FALLBACK] No match even with octave expansion → proceeding to dead-reckon`)
+                v5LogFor(xmlEvent, `[V5 OCTAVE-FALLBACK] No match in tight window [${searchStart.toFixed(3)},${searchEnd.toFixed(3)}] → dead-reckon`)
             }
         }
 
