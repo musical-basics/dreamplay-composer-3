@@ -5,6 +5,7 @@ import { LayoutGrid, Music, Clock, TrendingUp } from 'lucide-react'
 import { HomeHeader } from './HomeHeader'
 import { CompositionCard } from './CompositionCard'
 import { CTAButton } from './CTAButton'
+import { HeroVideo } from './HeroVideo'
 import { fetchPublishedConfigsSortedAction } from '@/app/actions/config'
 import { FeaturePoll } from './FeaturePoll'
 import type { PollResults } from '@/app/actions/poll'
@@ -87,6 +88,9 @@ export const Homepage: React.FC<HomepageProps> = ({ compositions: initial, pollR
                     <CTAButton className="mx-auto" />
                 </div>
             </section>
+
+            {/* Hero Video */}
+            <HeroVideo />
 
             {/* Community Grid Section */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
