@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Play } from 'lucide-react'
+import { Play, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 
 const VIDEO_ID = 'kTDFXZibG_M'
 const THUMBNAIL_URL = `https://i.ytimg.com/vi/${VIDEO_ID}/maxresdefault.jpg`
@@ -16,6 +17,18 @@ export function HeroVideo() {
                 <div className="w-[110%] h-[110%] rounded-3xl bg-purple-500/10 blur-3xl" />
             </div>
 
+            {/* ── Eyebrow label ── */}
+            <div className="text-center mb-6">
+                <div className="inline-block">
+                    <p className="text-sm sm:text-base font-semibold tracking-widest uppercase text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400">
+                        See it in action
+                    </p>
+                    {/* Gradient underline */}
+                    <div className="mt-1.5 h-px w-full bg-gradient-to-r from-transparent via-pink-500/60 to-transparent" />
+                </div>
+            </div>
+
+            {/* ── Video ── */}
             <div
                 className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_-10px_rgba(168,85,247,0.35)] group cursor-pointer"
                 style={{ aspectRatio: '16/9' }}
@@ -58,9 +71,7 @@ export function HeroVideo() {
                                 <span className="absolute w-20 h-20 rounded-full bg-white/15" />
                                 {/* Button */}
                                 <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:scale-110">
-                                    <Play
-                                        className="w-7 h-7 sm:w-9 sm:h-9 text-purple-700 fill-purple-700 ml-1"
-                                    />
+                                    <Play className="w-7 h-7 sm:w-9 sm:h-9 text-purple-700 fill-purple-700 ml-1" />
                                 </div>
                             </div>
 
@@ -70,6 +81,18 @@ export function HeroVideo() {
                         </div>
                     </>
                 )}
+            </div>
+
+            {/* ── Mobile CTA — shown on mobile, hidden sm+ ── */}
+            <div className="mt-6 flex justify-center sm:hidden">
+                <Link
+                    href="/login"
+                    id="hero-video-mobile-cta"
+                    className="group inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 text-sm font-semibold tracking-wide hover:bg-purple-500/20 hover:border-purple-400/50 hover:text-purple-200 transition-all duration-200"
+                >
+                    Try it free
+                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </Link>
             </div>
         </div>
     )
